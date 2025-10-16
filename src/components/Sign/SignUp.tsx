@@ -1,8 +1,8 @@
 'use client';
-
-import Link from "next/link";
-
-import { useState } from "react";
+import { useState } from 'react';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 const SignUpForm = () => {
   const [formData, setFormData] = useState({
@@ -11,59 +11,94 @@ const SignUpForm = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    agreeToTerms: false
   });
-
-  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.firstName.trim()) {
-      newErrors.firstName = "Ім'я обов'язкове";
-    }
-
-    if (!formData.lastName.trim()) {
-      newErrors.lastName = "Прізвище обов'язкове";
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email обов'язковий";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Невірний формат email";
-    }
-
-    if (!formData.password) {
-      newErrors.password = "Пароль обов'язковий";
-    } else if (formData.password.length < 6) {
-      newErrors.password = "Пароль має бути至少 6 символів";
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Паролі не співпадають";
-    }
-
-    if (!formData.agreeToTerms) {
-      newErrors.agreeToTerms = "Ви повинні погодитись з умовами";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (validateForm()) {
-      // Тут буде логіка відправки форми
-      console.log('Форма відправлена:', formData);
+    setLoading(true);
+    setError('');
+
+    // Валідація
+    if (formData.password !== formData.confirmPassword) {
+      setError('Паролі не співпадають');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Пароль має бути至少 6 символів');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      console.log('Спробуємо зареєструвати користувача:', formData);
+
+      // Реєстрація користувача
+      const newUser = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        password: formData.password,
+        createdAt: new Date().toISOString(),
+      };
+
+      console.log('Відправляємо запит до бази даних...');
+
+      const response = await fetch('http://localhost:3001/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newUser),
+      });
+
+      console.log('Відповідь від сервера:', response.status);
+
+      if (response.ok) {
+        const createdUser = await response.json();
+        console.log('Користувач створений:', createdUser);
+
+        // Автоматичний вхід після реєстрації
+        console.log('Спробуємо увійти...');
+        const result = await signIn('credentials', {
+          email: formData.email,
+          password: formData.password,
+          redirect: false,
+        });
+
+        console.log('Результат входу:', result);
+
+        if (result?.error) {
+          setError('Реєстрація успішна, але вхід не вдався. Спробуйте увійти вручну.');
+          // Перенаправляємо на сторінку входу
+          setTimeout(() => {
+            router.push('/signin');
+          }, 2000);
+        } else {
+          console.log('Успішний вхід, перенаправляємо на dashboard...');
+          router.push('/dashboard');
+        }
+      } else {
+        const errorData = await response.text();
+        console.error('Помилка від сервера:', errorData);
+        setError('Помилка при реєстрації. Можливо, користувач вже існує.');
+      }
+    } catch (error) {
+      console.error('Помилка при реєстрації:', error);
+      setError('Сталася помилка при реєстрації. Перевірте підключення до сервера.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -71,14 +106,18 @@ const SignUpForm = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-8">
       <div className="max-w-md w-full space-y-8">
         <div className="bg-white rounded-2xl shadow-xl p-8">
-          {/* Заголовок */}
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Створіть акаунт</h2>
             <p className="mt-2 text-gray-600">Заповніть форму для реєстрації</p>
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-4">
+              {error}
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
-            {/* Ім'я та Прізвище */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -90,14 +129,10 @@ const SignUpForm = () => {
                   type="text"
                   value={formData.firstName}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                    errors.firstName ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Введіть ім'я"
                 />
-                {errors.firstName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.firstName}</p>
-                )}
               </div>
 
               <div>
@@ -110,18 +145,13 @@ const SignUpForm = () => {
                   type="text"
                   value={formData.lastName}
                   onChange={handleChange}
-                  className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                    errors.lastName ? 'border-red-500' : 'border-gray-300'
-                  }`}
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Введіть прізвище"
                 />
-                {errors.lastName && (
-                  <p className="mt-1 text-sm text-red-600">{errors.lastName}</p>
-                )}
               </div>
             </div>
 
-            {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
@@ -132,17 +162,12 @@ const SignUpForm = () => {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
-                }`}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="your@email.com"
               />
-              {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-              )}
             </div>
 
-            {/* Пароль */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 Пароль
@@ -153,17 +178,13 @@ const SignUpForm = () => {
                 type="password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                  errors.password ? 'border-red-500' : 'border-gray-300'
-                }`}
+                required
+                minLength={6}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="Мінімум 6 символів"
               />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password}</p>
-              )}
             </div>
 
-            {/* Підтвердження пароля */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
                 Підтвердіть пароль
@@ -174,50 +195,20 @@ const SignUpForm = () => {
                 type="password"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                  errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                }`}
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 placeholder="Повторіть пароль"
               />
-              {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
-              )}
             </div>
 
-            {/* Чекбокс умов */}
-            <div className="flex items-start space-x-3">
-              <input
-                id="agreeToTerms"
-                name="agreeToTerms"
-                type="checkbox"
-                checked={formData.agreeToTerms}
-                onChange={handleChange}
-                className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label htmlFor="agreeToTerms" className="text-sm text-gray-600">
-                Я погоджуюсь з{' '}
-                <Link href="/terms" className="text-blue-600 hover:text-blue-500 font-medium">
-                  умовами використання
-                </Link>{' '}
-                та{' '}
-                <Link href="/privacy" className="text-blue-600 hover:text-blue-500 font-medium">
-                  політикою конфіденційності
-                </Link>
-              </label>
-            </div>
-            {errors.agreeToTerms && (
-              <p className="text-sm text-red-600">{errors.agreeToTerms}</p>
-            )}
-
-            {/* Кнопка реєстрації */}
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-lg hover:shadow-xl"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 px-4 rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transform hover:-translate-y-0.5 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Зареєструватись
+              {loading ? 'Реєстрація...' : 'Зареєструватись'}
             </button>
 
-            {/* Посилання на вхід */}
             <div className="text-center">
               <p className="text-gray-600">
                 Вже маєте акаунт?{' '}
@@ -227,35 +218,6 @@ const SignUpForm = () => {
               </p>
             </div>
           </form>
-
-          {/* Роздільник */}
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Або продовжити з</span>
-              </div>
-            </div>
-
-            {/* Соціальні мережі */}
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                <span>Google</span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-              >
-                <span>GitHub</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
