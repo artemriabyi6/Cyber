@@ -2,119 +2,93 @@
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {  DashboardData } from '../../types/types';
 
-interface TrainingPlan {
-  id: number;
-  title: string;
-  duration: string;
-  intensity: 'low' | 'medium' | 'high';
-  completed: boolean;
-  exercises: string[];
-}
-
-interface ProgressStats {
-  skill: string;
-  current: number;
-  previous: number;
-  icon: string;
-}
-
-interface NextTraining {
-  date: string;
-  time: string;
-  type: string;
-  focus: string;
-}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('training');
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Дані для тренувань
-  const trainingPlans: TrainingPlan[] = [
-    {
-      id: 1,
-      title: 'Техніка ведення мʼяча',
-      duration: '45 хв',
-      intensity: 'medium',
-      completed: true,
-      exercises: ['Ведення конусів', 'Зміна напрямку', 'Фінти']
-    },
-    {
-      id: 2,
-      title: 'Ударна техніка',
-      duration: '60 хв',
-      intensity: 'high',
-      completed: false,
-      exercises: ['Удари з різних дистанцій', 'Точність', 'Сила удару']
-    },
-    {
-      id: 3,
-      title: 'Тактична підготовка',
-      duration: '50 хв',
-      intensity: 'medium',
-      completed: false,
-      exercises: ['Позиційна гра', 'Командні дії', 'Стратегія']
-    },
-    {
-      id: 4,
-      title: 'Фізична підготовка',
-      duration: '40 хв',
-      intensity: 'high',
-      completed: false,
-      exercises: ['Спринт', 'Стрибки', 'Витривалість']
+  // Функція для завантаження даних з db.json
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Завантажуємо всі дані паралельно
+      const [trainingPlansRes, progressStatsRes, nextTrainingRes, coachNotesRes, achievementsRes] = await Promise.all([
+        fetch('http://localhost:3001/trainingPlans'),
+        fetch('http://localhost:3001/progressStats'),
+        fetch('http://localhost:3001/nextTraining'),
+        fetch('http://localhost:3001/coachNotes'),
+        fetch('http://localhost:3001/achievements')
+      ]);
+
+      // Перевіряємо чи всі запити успішні
+      if (!trainingPlansRes.ok || !progressStatsRes.ok || !nextTrainingRes.ok || !coachNotesRes.ok || !achievementsRes.ok) {
+        throw new Error('Помилка завантаження даних');
+      }
+
+      const [trainingPlans, progressStats, nextTraining, coachNotes, achievements] = await Promise.all([
+        trainingPlansRes.json(),
+        progressStatsRes.json(),
+        nextTrainingRes.json(),
+        coachNotesRes.json(),
+        achievementsRes.json()
+      ]);
+
+      setDashboardData({
+        trainingPlans,
+        progressStats,
+        nextTraining,
+        coachNotes,
+        achievements
+      });
+    } catch (err) {
+      console.error('Помилка завантаження даних:', err);
+      setError('Не вдалося завантажити дані. Спробуйте пізніше.');
+    } finally {
+      setLoading(false);
     }
-  ];
-
-  const progressStats: ProgressStats[] = [
-    {
-      skill: 'Техніка',
-      current: 75,
-      previous: 65,
-      icon: '⚽'
-    },
-    {
-      skill: 'Швидкість',
-      current: 82,
-      previous: 70,
-      icon: '💨'
-    },
-    {
-      skill: 'Точність',
-      current: 68,
-      previous: 55,
-      icon: '🎯'
-    },
-    {
-      skill: 'Фізика',
-      current: 71,
-      previous: 60,
-      icon: '💪'
-    }
-  ];
-
-  const nextTraining: NextTraining = {
-    date: '15 Лютого 2024',
-    time: '18:00',
-    type: 'Індивідуальне',
-    focus: 'Ударна техніка'
   };
-
-  const coachNotes = [
-    'Працюй над контролем мʼяча під тиском',
-    'Збільшуй швидкість прийняття рішень',
-    'Покращуй точність передач на дальні дистанції',
-    'Розвивай ліву ногу'
-  ];
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/signin');
+    } else if (status === 'authenticated') {
+      fetchDashboardData();
     }
   }, [status, router]);
 
-  if (status === 'loading') {
+  // Функція для оновлення статусу тренування
+  const updateTrainingStatus = async (trainingId: number, completed: boolean) => {
+    try {
+      const response = await fetch(`http://localhost:3001/trainingPlans/${trainingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed }),
+      });
+
+      if (response.ok) {
+        // Оновлюємо локальний стан
+        setDashboardData(prev => prev ? {
+          ...prev,
+          trainingPlans: prev.trainingPlans.map(training => 
+            training.id === trainingId ? { ...training, completed } : training
+          )
+        } : null);
+      }
+    } catch (err) {
+      console.error('Помилка оновлення тренування:', err);
+    }
+  };
+
+  if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
@@ -128,6 +102,35 @@ export default function Dashboard() {
   if (!session) {
     return null;
   }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">😔</div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={fetchDashboardData}
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
+          >
+            Спробувати знову
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!dashboardData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-gray-600">Дані не знайдені</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { trainingPlans, progressStats, nextTraining, coachNotes, achievements } = dashboardData;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -170,9 +173,9 @@ export default function Dashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {progressStats.map((stat, index) => (
+          {progressStats.map((stat) => (
             <div
-              key={index}
+              key={stat.id}
               className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow duration-200"
             >
               <div className="flex items-center justify-between mb-4">
@@ -230,7 +233,10 @@ export default function Dashboard() {
                         {training.completed ? (
                           <span className="bg-green-500 text-white px-2 py-1 rounded text-xs">Завершено</span>
                         ) : (
-                          <button className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                          <button 
+                            onClick={() => updateTrainingStatus(training.id, true)}
+                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                          >
                             Розпочати
                           </button>
                         )}
@@ -342,21 +348,21 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">🏆 Досягнення</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <div className="text-2xl mb-1">🔥</div>
-                  <div className="text-xs text-gray-600">Серія тренувань</div>
-                  <div className="font-bold text-green-600">5 днів</div>
-                </div>
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <div className="text-2xl mb-1">⚡</div>
-                  <div className="text-xs text-gray-600">Рекорд швидкості</div>
-                  <div className="font-bold text-blue-600">+12%</div>
-                </div>
-                <div className="p-3 bg-purple-50 rounded-lg">
-                  <div className="text-2xl mb-1">🎯</div>
-                  <div className="text-xs text-gray-600">Точність</div>
-                  <div className="font-bold text-purple-600">85%</div>
-                </div>
+                {achievements.map((achievement) => (
+                  <div key={achievement.id} className={`p-3 ${
+                    achievement.color === 'green' ? 'bg-green-50' :
+                    achievement.color === 'blue' ? 'bg-blue-50' : 'bg-purple-50'
+                  } rounded-lg`}>
+                    <div className="text-2xl mb-1">{achievement.icon}</div>
+                    <div className="text-xs text-gray-600">{achievement.title}</div>
+                    <div className={`font-bold ${
+                      achievement.color === 'green' ? 'text-green-600' :
+                      achievement.color === 'blue' ? 'text-blue-600' : 'text-purple-600'
+                    }`}>
+                      {achievement.value}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
