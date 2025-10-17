@@ -335,12 +335,12 @@ export default function Dashboard() {
                 </span>
               </h3>
               <div className="space-y-3">
-                {coachNotes.map((note, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <span className="text-yellow-500 mt-0.5">💡</span>
-                    <p className="text-sm text-yellow-800">{note}</p>
-                  </div>
-                ))}
+               {coachNotes.map((noteItem) => (
+  <div key={noteItem.id} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+    <span className="text-yellow-500 mt-0.5">💡</span>
+    <p className="text-sm text-yellow-800">{noteItem.note}</p>
+  </div>
+))}
               </div>
             </div>
 

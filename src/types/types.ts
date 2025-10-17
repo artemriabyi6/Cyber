@@ -30,10 +30,15 @@ export interface Achievement {
   color: string;
 }
 
+export interface CoachNote {
+  id: number;
+  note: string;
+}
 export interface DashboardData {
   trainingPlans: TrainingPlan[];
   progressStats: ProgressStats[];
   nextTraining: NextTraining;
-  coachNotes: string[];
+  coachNotes: CoachNote[];
   achievements: Achievement[];
 }
+
