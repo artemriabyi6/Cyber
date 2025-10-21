@@ -2,8 +2,55 @@
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import {  DashboardData } from '../../types/types';
 
+interface TrainingPlan {
+  id: number;
+  title: string;
+  duration: string;
+  intensity: 'low' | 'medium' | 'high';
+  completed: boolean;
+  exercises: string[];
+  assignedTo: string[];
+}
+
+interface ProgressStats {
+  id: number;
+  userId: string;
+  skill: string;
+  current: number;
+  previous: number;
+  icon: string;
+}
+
+interface NextTraining {
+  id: number;
+  date: string;
+  time: string;
+  type: string;
+  focus: string;
+}
+
+interface CoachNote {
+  id: number;
+  note: string;
+}
+
+interface Achievement {
+  id: number;
+  userId: string;
+  icon: string;
+  title: string;
+  value: string;
+  color: string;
+}
+
+interface DashboardData {
+  trainingPlans: TrainingPlan[];
+  progressStats: ProgressStats[];
+  nextTraining: NextTraining;
+  coachNotes: CoachNote[];
+  achievements: Achievement[];
+}
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -12,40 +59,58 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Функція для завантаження даних з db.json
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Завантажуємо всі дані паралельно
-      const [trainingPlansRes, progressStatsRes, nextTrainingRes, coachNotesRes, achievementsRes] = await Promise.all([
-        fetch('http://localhost:3001/trainingPlans'),
-        fetch('http://localhost:3001/progressStats'),
-        fetch('http://localhost:3001/nextTraining'),
-        fetch('http://localhost:3001/coachNotes'),
-        fetch('http://localhost:3001/achievements')
-      ]);
-
-      // Перевіряємо чи всі запити успішні
-      if (!trainingPlansRes.ok || !progressStatsRes.ok || !nextTrainingRes.ok || !coachNotesRes.ok || !achievementsRes.ok) {
-        throw new Error('Помилка завантаження даних');
+      if (!session?.user?.id) {
+        throw new Error('Користувач не авторизований');
       }
 
-      const [trainingPlans, progressStats, nextTraining, coachNotes, achievements] = await Promise.all([
-        trainingPlansRes.json(),
-        progressStatsRes.json(),
-        nextTrainingRes.json(),
-        coachNotesRes.json(),
-        achievementsRes.json()
+      const userId = session.user.id;
+
+      // Завантажуємо тільки тренування призначені поточному користувачу
+      const trainingPlansRes = await fetch('http://localhost:3001/trainingPlans');
+      const trainingPlans = await trainingPlansRes.json();
+      const userTrainingPlans = trainingPlans.filter((plan: TrainingPlan) => 
+        plan.assignedTo.includes(userId)
+      );
+
+      // Завантажуємо статистику тільки для поточного користувача
+      const progressStatsRes = await fetch(`http://localhost:3001/progressStats?userId=${userId}`);
+      const userProgressStats = await progressStatsRes.json();
+
+      // Завантажуємо інші дані
+      const [nextTrainingRes, coachNotesRes, achievementsRes] = await Promise.all([
+        fetch('http://localhost:3001/nextTraining'), // Звертаємось до конкретного об'єкта
+        fetch('http://localhost:3001/coachNotes'),
+        fetch(`http://localhost:3001/achievements?userId=${userId}`)
       ]);
 
+      // Обробляємо відповіді з перевіркою на 404
+      let nextTraining = { id: 1, date: 'Не встановлено', time: '', type: '', focus: '' };
+      let coachNotes: CoachNote[] = [];
+      let userAchievements: Achievement[] = [];
+
+      if (nextTrainingRes.ok) {
+        nextTraining = await nextTrainingRes.json();
+      }
+
+      if (coachNotesRes.ok) {
+        coachNotes = await coachNotesRes.json();
+      }
+
+      if (achievementsRes.ok) {
+        userAchievements = await achievementsRes.json();
+      }
+
       setDashboardData({
-        trainingPlans,
-        progressStats,
+        trainingPlans: userTrainingPlans,
+        progressStats: userProgressStats,
         nextTraining,
         coachNotes,
-        achievements
+        achievements: userAchievements
       });
     } catch (err) {
       console.error('Помилка завантаження даних:', err);
@@ -59,11 +124,14 @@ export default function Dashboard() {
     if (status === 'unauthenticated') {
       router.push('/signin');
     } else if (status === 'authenticated') {
+      if (session.user?.role === 'coach') {
+        router.push('/coach-dashboard');
+        return;
+      }
       fetchDashboardData();
     }
-  }, [status, router]);
+  }, [status, session, router]);
 
-  // Функція для оновлення статусу тренування
   const updateTrainingStatus = async (trainingId: number, completed: boolean) => {
     try {
       const response = await fetch(`http://localhost:3001/trainingPlans/${trainingId}`, {
@@ -75,7 +143,6 @@ export default function Dashboard() {
       });
 
       if (response.ok) {
-        // Оновлюємо локальний стан
         setDashboardData(prev => prev ? {
           ...prev,
           trainingPlans: prev.trainingPlans.map(training => 
@@ -335,12 +402,12 @@ export default function Dashboard() {
                 </span>
               </h3>
               <div className="space-y-3">
-               {coachNotes.map((noteItem) => (
-  <div key={noteItem.id} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-    <span className="text-yellow-500 mt-0.5">💡</span>
-    <p className="text-sm text-yellow-800">{noteItem.note}</p>
-  </div>
-))}
+                {coachNotes.map((note) => (
+                  <div key={note.id} className="flex items-start space-x-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <span className="text-yellow-500 mt-0.5">💡</span>
+                    <p className="text-sm text-yellow-800">{note.note}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -348,21 +415,27 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">🏆 Досягнення</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
-                {achievements.map((achievement) => (
-                  <div key={achievement.id} className={`p-3 ${
-                    achievement.color === 'green' ? 'bg-green-50' :
-                    achievement.color === 'blue' ? 'bg-blue-50' : 'bg-purple-50'
-                  } rounded-lg`}>
-                    <div className="text-2xl mb-1">{achievement.icon}</div>
-                    <div className="text-xs text-gray-600">{achievement.title}</div>
-                    <div className={`font-bold ${
-                      achievement.color === 'green' ? 'text-green-600' :
-                      achievement.color === 'blue' ? 'text-blue-600' : 'text-purple-600'
-                    }`}>
-                      {achievement.value}
+                {achievements.length > 0 ? (
+                  achievements.map((achievement) => (
+                    <div key={achievement.id} className={`p-3 ${
+                      achievement.color === 'green' ? 'bg-green-50' :
+                      achievement.color === 'blue' ? 'bg-blue-50' : 'bg-purple-50'
+                    } rounded-lg`}>
+                      <div className="text-2xl mb-1">{achievement.icon}</div>
+                      <div className="text-xs text-gray-600">{achievement.title}</div>
+                      <div className={`font-bold ${
+                        achievement.color === 'green' ? 'text-green-600' :
+                        achievement.color === 'blue' ? 'text-blue-600' : 'text-purple-600'
+                      }`}>
+                        {achievement.value}
+                      </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="col-span-3 text-center py-4">
+                    <p className="text-gray-500 text-sm">Поки що немає досягнень</p>
                   </div>
-                ))}
+                )}
               </div>
             </div>
           </div>
