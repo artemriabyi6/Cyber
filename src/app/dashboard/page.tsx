@@ -410,7 +410,8 @@ export default function Dashboard() {
                   </span>
                 </button>
 
-                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors duration-200">
+                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors duration-200"
+                 onClick={() => router.push("/goals")}>
                   <span className="text-2xl">🎯</span>
                   <span className="text-left">
                     <div className="font-medium text-gray-900">Цілі</div>
