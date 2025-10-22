@@ -11,6 +11,8 @@ interface TrainingPlan {
   completed: boolean;
   exercises: string[];
   assignedTo: string[];
+  date: string;
+  completedDate?: string;
 }
 
 interface ProgressStats {
@@ -55,11 +57,12 @@ interface DashboardData {
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null
-  );
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentArchivePage, setCurrentArchivePage] = useState(1);
+  const [currentQueuePage, setCurrentQueuePage] = useState(1);
+  const trainingsPerPage = 5;
 
   const fetchDashboardData = async () => {
     try {
@@ -72,30 +75,21 @@ export default function Dashboard() {
 
       const userId = session.user.id;
 
-      // Завантажуємо тільки тренування призначені поточному користувачу
-      const trainingPlansRes = await fetch(
-        "http://localhost:3001/trainingPlans"
-      );
+      const trainingPlansRes = await fetch("http://localhost:3001/trainingPlans");
       const trainingPlans = await trainingPlansRes.json();
       const userTrainingPlans = trainingPlans.filter((plan: TrainingPlan) =>
         plan.assignedTo.includes(userId)
       );
 
-      // Завантажуємо статистику тільки для поточного користувача
-      const progressStatsRes = await fetch(
-        `http://localhost:3001/progressStats?userId=${userId}`
-      );
+      const progressStatsRes = await fetch(`http://localhost:3001/progressStats?userId=${userId}`);
       const userProgressStats = await progressStatsRes.json();
 
-      // Завантажуємо інші дані
-      const [nextTrainingRes, coachNotesRes, achievementsRes] =
-        await Promise.all([
-          fetch("http://localhost:3001/nextTraining"), // Звертаємось до конкретного об'єкта
-          fetch("http://localhost:3001/coachNotes"),
-          fetch(`http://localhost:3001/achievements?userId=${userId}`),
-        ]);
+      const [nextTrainingRes, coachNotesRes, achievementsRes] = await Promise.all([
+        fetch(`http://localhost:3001/nextTrainings?userId=${userId}`),
+        fetch("http://localhost:3001/coachNotes"),
+        fetch(`http://localhost:3001/achievements?userId=${userId}`),
+      ]);
 
-      // Обробляємо відповіді з перевіркою на 404
       let nextTraining = {
         id: 1,
         date: "Не встановлено",
@@ -107,7 +101,8 @@ export default function Dashboard() {
       let userAchievements: Achievement[] = [];
 
       if (nextTrainingRes.ok) {
-        nextTraining = await nextTrainingRes.json();
+        const nextTrainings = await nextTrainingRes.json();
+        nextTraining = nextTrainings[0] || nextTraining;
       }
 
       if (coachNotesRes.ok) {
@@ -145,10 +140,8 @@ export default function Dashboard() {
     }
   }, [status, session, router]);
 
-  const updateTrainingStatus = async (
-    trainingId: number,
-    completed: boolean
-  ) => {
+  // Функція для оновлення статусу тренування
+  const updateTrainingStatus = async (trainingId: number, completed: boolean) => {
     try {
       const response = await fetch(
         `http://localhost:3001/trainingPlans/${trainingId}`,
@@ -179,6 +172,83 @@ export default function Dashboard() {
       console.error("Помилка оновлення тренування:", err);
     }
   };
+
+  // Функція для форматування дати
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('uk-UA', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  };
+
+  // Функція для отримання кольору інтенсивності
+  const getIntensityColor = (intensity: string) => {
+    switch (intensity) {
+      case "high": return "text-red-500";
+      case "medium": return "text-yellow-500";
+      case "low": return "text-green-500";
+      default: return "text-gray-500";
+    }
+  };
+
+  // Функція для отримання тексту інтенсивності
+  const getIntensityText = (intensity: string) => {
+    switch (intensity) {
+      case "high": return "Висока";
+      case "medium": return "Середня";
+      case "low": return "Низька";
+      default: return "Не вказано";
+    }
+  };
+
+  // Пагінація для архіву
+  const getPaginatedArchiveTrainings = () => {
+    if (!dashboardData) return [];
+    
+    const completedTrainings = dashboardData.trainingPlans.filter(training => training.completed);
+    const sortedCompletedTrainings = [...completedTrainings].sort((a, b) => 
+      new Date(b.completedDate || b.date).getTime() - new Date(a.completedDate || a.date).getTime()
+    );
+
+    const startIndex = (currentArchivePage - 1) * trainingsPerPage;
+    const endIndex = startIndex + trainingsPerPage;
+    
+    return sortedCompletedTrainings.slice(startIndex, endIndex);
+  };
+
+  // Пагінація для тренувань в черзі
+  const getPaginatedQueueTrainings = () => {
+    if (!dashboardData) return [];
+    
+    const queueTrainings = dashboardData.trainingPlans.filter(training => !training.completed);
+    const sortedQueueTrainings = [...queueTrainings].sort((a, b) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+
+    const startIndex = (currentQueuePage - 1) * trainingsPerPage;
+    const endIndex = startIndex + trainingsPerPage;
+    
+    return sortedQueueTrainings.slice(startIndex, endIndex);
+  };
+
+  const getTotalArchivePages = () => {
+    if (!dashboardData) return 0;
+    const completedTrainings = dashboardData.trainingPlans.filter(training => training.completed);
+    return Math.ceil(completedTrainings.length / trainingsPerPage);
+  };
+
+  const getTotalQueuePages = () => {
+    if (!dashboardData) return 0;
+    const queueTrainings = dashboardData.trainingPlans.filter(training => !training.completed);
+    return Math.ceil(queueTrainings.length / trainingsPerPage);
+  };
+
+  const paginatedArchiveTrainings = getPaginatedArchiveTrainings();
+  const paginatedQueueTrainings = getPaginatedQueueTrainings();
+  const totalArchivePages = getTotalArchivePages();
+  const totalQueuePages = getTotalQueuePages();
 
   if (status === "loading" || loading) {
     return (
@@ -229,6 +299,9 @@ export default function Dashboard() {
     coachNotes,
     achievements,
   } = dashboardData;
+
+  const completedTrainings = trainingPlans.filter(training => training.completed);
+  const queueTrainings = trainingPlans.filter(training => !training.completed);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
@@ -308,97 +381,314 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Training Plans */}
+          {/* Left Column - Training Queue & Archive */}
           <div className="lg:col-span-2 space-y-8">
-            {/* Training Plans */}
+            {/* Training Queue */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  План тренувань
-                </h3>
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                  {trainingPlans.filter((t) => t.completed).length}/
-                  {trainingPlans.length} завершено
-                </span>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    ⏳ Тренування в черзі
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Заплановані тренування, які чекають на виконання
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {queueTrainings.length} в черзі
+                  </span>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                {trainingPlans.map((training) => (
-                  <div
-                    key={training.id}
-                    className={`border rounded-lg p-4 transition-all duration-200 ${
-                      training.completed
-                        ? "bg-green-50 border-green-200"
-                        : "bg-white border-gray-200 hover:border-green-300"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-3 h-3 rounded-full ${
-                            training.intensity === "high"
-                              ? "bg-red-500"
-                              : training.intensity === "medium"
-                              ? "bg-yellow-500"
-                              : "bg-green-500"
-                          }`}
-                        ></div>
-                        <h4 className="font-semibold text-gray-900">
-                          {training.title}
-                        </h4>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">
-                          {training.duration}
-                        </span>
-                        {training.completed ? (
-                          <span className="bg-green-500 text-white px-2 py-1 rounded text-xs">
-                            Завершено
-                          </span>
-                        ) : (
+              {paginatedQueueTrainings.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">✅</div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    Черга порожня
+                  </h4>
+                  <p className="text-gray-600">
+                    Всі тренування виконані! Очікуйте на нові завдання від тренера
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    {paginatedQueueTrainings.map((training) => (
+                      <div
+                        key={training.id}
+                        className="border border-orange-200 rounded-lg p-4 bg-orange-50 hover:shadow-md transition-shadow duration-200"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <div
+                                className={`w-3 h-3 rounded-full ${getIntensityColor(training.intensity)}`}
+                              ></div>
+                              <h4 className="font-semibold text-gray-900 text-lg">
+                                {training.title}
+                              </h4>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
+                              <div className="flex items-center space-x-1">
+                                <span>⏱️</span>
+                                <span>{training.duration}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>⚡</span>
+                                <span>{getIntensityText(training.intensity)}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>📅</span>
+                                <span>{formatDate(training.date)}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>🕒</span>
+                                <span className="text-orange-600 font-medium">В черзі</span>
+                              </div>
+                            </div>
+
+                            {training.exercises && training.exercises.length > 0 && (
+                              <div>
+                                <h5 className="font-medium text-gray-700 mb-2 text-sm">
+                                  Заплановані вправи:
+                                </h5>
+                                <div className="flex flex-wrap gap-2">
+                                  {training.exercises.map((exercise, index) => (
+                                    <span
+                                      key={index}
+                                      className="bg-white text-orange-700 px-2 py-1 rounded text-xs border border-orange-200"
+                                    >
+                                      {exercise}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-end">
                           <button
-                            onClick={() =>
-                              updateTrainingStatus(training.id, true)
-                            }
-                            className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm transition-colors"
+                            onClick={() => updateTrainingStatus(training.id, true)}
+                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
-                            Розпочати
+                            ✅ Завершити тренування
                           </button>
-                        )}
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {training.exercises.map((exercise, index) => (
-                        <span
-                          key={index}
-                          className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-sm"
-                        >
-                          {exercise}
-                        </span>
-                      ))}
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+
+                  {/* Пагінація для черги */}
+                  {totalQueuePages > 1 && (
+                    <div className="flex justify-center items-center space-x-2 mt-6">
+                      <button
+                        onClick={() => setCurrentQueuePage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentQueuePage === 1}
+                        className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        ←
+                      </button>
+                      
+                      {Array.from({ length: totalQueuePages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentQueuePage(page)}
+                          className={`px-3 py-1 rounded-lg ${
+                            currentQueuePage === page
+                              ? 'bg-orange-500 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={() => setCurrentQueuePage(prev => Math.min(prev + 1, totalQueuePages))}
+                        disabled={currentQueuePage === totalQueuePages}
+                        className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* Quick Actions */}
+            {/* Training Archive */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    📚 Архів тренувань
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Показано {paginatedArchiveTrainings.length} з {completedTrainings.length} тренувань
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {completedTrainings.length} завершених
+                  </span>
+                  <button
+                    onClick={() => router.push("/archive")}
+                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Весь архів
+                  </button>
+                </div>
+              </div>
+
+              {paginatedArchiveTrainings.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">📝</div>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                    Архів порожній
+                  </h4>
+                  <p className="text-gray-600">
+                    Тут будуть відображатися всі завершені тренування
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    {paginatedArchiveTrainings.map((training) => (
+                      <div
+                        key={training.id}
+                        className="border border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <div
+                                className={`w-3 h-3 rounded-full ${getIntensityColor(training.intensity)}`}
+                              ></div>
+                              <h4 className="font-semibold text-gray-900 text-lg">
+                                {training.title}
+                              </h4>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
+                              <div className="flex items-center space-x-1">
+                                <span>⏱️</span>
+                                <span>{training.duration}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>⚡</span>
+                                <span>{getIntensityText(training.intensity)}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>📅</span>
+                                <span>{formatDate(training.completedDate || training.date)}</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <span>✅</span>
+                                <span className="text-green-600 font-medium">Завершено</span>
+                              </div>
+                            </div>
+
+                            {training.exercises && training.exercises.length > 0 && (
+                              <div>
+                                <h5 className="font-medium text-gray-700 mb-2 text-sm">
+                                  Виконані вправи:
+                                </h5>
+                                <div className="flex flex-wrap gap-2">
+                                  {training.exercises.map((exercise, index) => (
+                                    <span
+                                      key={index}
+                                      className="bg-green-50 text-green-700 px-2 py-1 rounded text-xs border border-green-200"
+                                    >
+                                      {exercise}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Пагінація для архіву */}
+                  {totalArchivePages > 1 && (
+                    <div className="flex justify-center items-center space-x-2 mt-6">
+                      <button
+                        onClick={() => setCurrentArchivePage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentArchivePage === 1}
+                        className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        ←
+                      </button>
+                      
+                      {Array.from({ length: totalArchivePages }, (_, i) => i + 1).map(page => (
+                        <button
+                          key={page}
+                          onClick={() => setCurrentArchivePage(page)}
+                          className={`px-3 py-1 rounded-lg ${
+                            currentArchivePage === page
+                              ? 'bg-green-500 text-white'
+                              : 'border border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={() => setCurrentArchivePage(prev => Math.min(prev + 1, totalArchivePages))}
+                        disabled={currentArchivePage === totalArchivePages}
+                        className="px-3 py-1 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Статистика архіву */}
+              {completedTrainings.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <h4 className="font-semibold text-gray-900 mb-3">Статистика архіву</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div className="bg-blue-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-blue-600">{completedTrainings.length}</div>
+                      <div className="text-xs text-blue-800">Всього тренувань</div>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-green-600">
+                        {Math.round((completedTrainings.length / trainingPlans.length) * 100)}%
+                      </div>
+                      <div className="text-xs text-green-800">Успішність</div>
+                    </div>
+                    <div className="bg-yellow-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-yellow-600">
+                        {completedTrainings.filter(t => t.intensity === "high").length}
+                      </div>
+                      <div className="text-xs text-yellow-800">Високої інтенсивності</div>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-3">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {new Set(completedTrainings.flatMap(t => t.exercises)).size}
+                      </div>
+                      <div className="text-xs text-purple-800">Унікальних вправ</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions - ВСІ ФУНКЦІОНАЛИ ЗАЛИШЕНІ */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">
                 Швидкі дії
               </h3>
               <div className="grid grid-cols-2 gap-4">
-                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors duration-200">
-                  <span className="text-2xl">📹</span>
-                  <span className="text-left">
-                    <div className="font-medium text-gray-900">Аналіз гри</div>
-                    <div className="text-sm text-gray-500">
-                      Переглянути запис
-                    </div>
-                  </span>
-                </button>
-
                 <button
                   onClick={() => router.push("/statistics")}
                   className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors duration-200"
@@ -410,8 +700,10 @@ export default function Dashboard() {
                   </span>
                 </button>
 
-                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors duration-200"
-                 onClick={() => router.push("/goals")}>
+                <button 
+                  className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors duration-200"
+                  onClick={() => router.push("/goals")}
+                >
                   <span className="text-2xl">🎯</span>
                   <span className="text-left">
                     <div className="font-medium text-gray-900">Цілі</div>
@@ -419,9 +711,18 @@ export default function Dashboard() {
                   </span>
                 </button>
 
+                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors duration-200">
+                  <span className="text-2xl">📊</span>
+                  <span className="text-left">
+                    <div className="font-medium text-gray-900">Прогрес</div>
+                    <div className="text-sm text-gray-500">Моя статистика</div>
+                  </span>
+                </button>
+
                 <button
-                onClick={() => router.push("/chat")} 
-                className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors duration-200">
+                  onClick={() => router.push("/chat")} 
+                  className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors duration-200"
+                >
                   <span className="text-2xl">👨‍🏫</span>
                   <span className="text-left">
                     <div className="font-medium text-gray-900">Тренер</div>
@@ -432,7 +733,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Right Column - Next Training & Coach Notes */}
+          {/* Right Column - Next Training & Coach Notes & Achievements - ВСЕ ЗАЛИШЕНО */}
           <div className="space-y-8">
             {/* Next Training */}
             <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-6 text-white">
