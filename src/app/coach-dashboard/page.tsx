@@ -584,6 +584,15 @@ export default function CoachDashboard() {
                         Додати/видалити учнів
                       </div>
                     </button>
+                    <button
+                onClick={() => router.push("/chat")} 
+                className=" w-full text-left  flex items-center space-x-3 p-4 border  rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors duration-200">
+                  <span className="text-2xl">👨‍🏫</span>
+                  <span className="text-left">
+                    <div className="font-medium text-gray-900">Тренер</div>
+                    <div className="text-sm text-gray-500">Звʼязатись</div>
+                  </span>
+                </button>
                   </div>
                 </div>
               </div>
