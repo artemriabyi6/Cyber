@@ -711,13 +711,6 @@ export default function Dashboard() {
                   </span>
                 </button>
 
-                <button className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors duration-200">
-                  <span className="text-2xl">📊</span>
-                  <span className="text-left">
-                    <div className="font-medium text-gray-900">Прогрес</div>
-                    <div className="text-sm text-gray-500">Моя статистика</div>
-                  </span>
-                </button>
 
                 <button
                   onClick={() => router.push("/chat")} 
