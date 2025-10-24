@@ -908,6 +908,50 @@ interface DashboardData {
   achievements: Achievement[];
 }
 
+interface ApiTrainingSession {
+  id: string;
+  date: string;
+  duration: string;
+  completed: boolean;
+  userId: string;
+  coachNotes?: string;
+  performance?: string;
+  title?: string;
+  assignedTo?: string[];
+}
+
+interface ApiProgressStats {
+  id: string;
+  userId: string;
+  skill: string;
+  current: number;
+  previous: number;
+  icon: string;
+}
+
+interface ApiNextTraining {
+  id: string;
+  date: string;
+  time: string;
+  type: string;
+  focus: string;
+  trainingPlanId?: string;
+}
+
+interface ApiCoachNote {
+  id: string;
+  note: string;
+}
+
+interface ApiAchievement {
+  id: string;
+  userId: string;
+  icon: string;
+  title: string;
+  value: string;
+  color: string;
+}
+
 export default function Dashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -928,8 +972,8 @@ export default function Dashboard() {
       }
 
       // Використовуємо наші нові API endpoints
-      const [trainingPlansRes, progressStatsRes, nextTrainingsRes, coachNotesRes, achievementsRes] = await Promise.all([
-        fetch('/api/trainings/user'),
+      const [trainingPlansRes, progressStatsRes, nextTrainingsRes, coachNotesRes, achievementsRes,] = await Promise.all([
+        fetch('/api/training-plans'),
         fetch('/api/progress-stats'),
         fetch('/api/next-trainings'),
         fetch('/api/coach-notes'),
@@ -940,28 +984,34 @@ export default function Dashboard() {
         throw new Error('Не вдалося завантажити дані');
       }
 
-      const trainingPlans = await trainingPlansRes.json();
-      const progressStats = await progressStatsRes.json();
-      const nextTrainings = nextTrainingsRes.ok ? await nextTrainingsRes.json() : [];
-      const coachNotes = coachNotesRes.ok ? await coachNotesRes.json() : [];
-      const achievements = achievementsRes.ok ? await achievementsRes.json() : [];
+      const trainingPlans: ApiTrainingSession[] = await trainingPlansRes.json();
+      const progressStats: ApiProgressStats[] = await progressStatsRes.json();
+      const nextTrainings: ApiNextTraining[] = nextTrainingsRes.ok ? await nextTrainingsRes.json() : [];
+      const coachNotes: ApiCoachNote[] = coachNotesRes.ok ? await coachNotesRes.json() : [];
+      const achievements: ApiAchievement[] = achievementsRes.ok ? await achievementsRes.json() : [];
 
       // Трансформуємо дані для сумісності з існуючим інтерфейсом
-      const transformedTrainingPlans: TrainingPlan[] = trainingPlans.map((session: any) => ({
+      const transformedTrainingPlans: TrainingPlan[] = trainingPlans.map((session: ApiTrainingSession) => ({
         id: session.id,
-        title: `Тренування ${session.date}`,
+        title: session.title || `Тренування ${session.date}`,
         duration: session.duration,
         intensity: "medium" as const,
         completed: session.completed,
         exercises: session.coachNotes ? [session.coachNotes] : [],
-        assignedTo: [session.userId],
+        assignedTo: session.assignedTo || [session.userId],
         date: session.date,
         completedDate: session.completed ? session.date : undefined,
-        performance: session.performance
       }));
 
       // Отримуємо наступне тренування (перше з масиву)
-      const nextTraining: NextTraining = nextTrainings.length > 0 ? nextTrainings[0] : {
+      const nextTraining: NextTraining = nextTrainings.length > 0 ? {
+        id: nextTrainings[0].id,
+        date: nextTrainings[0].date,
+        time: nextTrainings[0].time,
+        type: nextTrainings[0].type,
+        focus: nextTrainings[0].focus,
+        trainingPlanId: nextTrainings[0].trainingPlanId,
+      } : {
         id: "1",
         date: "Не встановлено",
         time: "",
@@ -998,34 +1048,41 @@ export default function Dashboard() {
 
   // Функція для оновлення статусу тренування
   const updateTrainingStatus = async (trainingId: string, completed: boolean) => {
-    try {
-      const response = await fetch(`/api/training-sessions/${trainingId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ completed }),
-      });
+  try {
+    const response = await fetch(`/api/training-plans/${trainingId}`, { // ЗМІНА: використовуємо training-plans
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ 
+        completed,
+        completedDate: completed ? new Date().toISOString().split('T')[0] : null 
+      }),
+    });
 
-      if (response.ok) {
-        // Оновлюємо локальний стан
-        setDashboardData((prev) =>
-          prev
-            ? {
-                ...prev,
-                trainingPlans: prev.trainingPlans.map((training) =>
-                  training.id === trainingId
-                    ? { ...training, completed, completedDate: completed ? new Date().toISOString().split('T')[0] : undefined }
-                    : training
-                ),
-              }
-            : null
-        );
-      }
-    } catch (err) {
-      console.error("Помилка оновлення тренування:", err);
+    if (response.ok) {
+      // Оновлюємо локальний стан
+      setDashboardData((prev) =>
+        prev
+          ? {
+              ...prev,
+              trainingPlans: prev.trainingPlans.map((training) =>
+                training.id === trainingId
+                  ? { 
+                      ...training, 
+                      completed, 
+                      completedDate: completed ? new Date().toISOString().split('T')[0] : undefined 
+                    }
+                  : training
+              ),
+            }
+          : null
+      );
     }
-  };
+  } catch (err) {
+    console.error("Помилка оновлення тренування:", err);
+  }
+};
 
   // Функція для форматування дати
   const formatDate = (dateString: string) => {
@@ -1108,7 +1165,7 @@ export default function Dashboard() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження дашборду...</p>
@@ -1123,7 +1180,7 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="text-red-500 text-xl mb-4">😔</div>
           <p className="text-gray-600 mb-4">{error}</p>
@@ -1140,7 +1197,7 @@ export default function Dashboard() {
 
   if (!dashboardData) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">Дані не знайдені</p>
         </div>
@@ -1160,7 +1217,7 @@ export default function Dashboard() {
   const queueTrainings = trainingPlans.filter(training => !training.completed);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1178,7 +1235,7 @@ export default function Dashboard() {
                 </p>
                 <p className="text-sm text-gray-500">Учень</p>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-10 h-10 bg-linear-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
                 {session.user?.name?.charAt(0) || "У"}
               </div>
               <button
@@ -1228,7 +1285,7 @@ export default function Dashboard() {
               <p className="text-gray-600 text-sm">{stat.skill}</p>
               <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                 <div
-                  className="bg-gradient-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
+                  className="bg-linear-to-r from-green-500 to-emerald-600 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${stat.current}%` }}
                 ></div>
               </div>
@@ -1584,7 +1641,7 @@ export default function Dashboard() {
           {/* Right Column - Next Training & Coach Notes & Achievements */}
           <div className="space-y-8">
             {/* Next Training */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-6 text-white">
+            <div className="bg-linear-to-br from-green-500 to-emerald-600 rounded-xl shadow-sm p-6 text-white">
               <h3 className="text-lg font-semibold mb-4">
                 Наступне тренування
               </h3>

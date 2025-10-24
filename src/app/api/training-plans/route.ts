@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from '../../../../lib/auth'
+import { authOptions } from './../../../../lib/auth'
 
 export async function GET() {
   try {
@@ -12,28 +12,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
-    // Отримуємо всі тренування
     const trainingPlans = await prisma.trainingPlan.findMany({
       orderBy: {
         date: 'desc'
       }
     })
 
-    // Трансформуємо дані для сумісності
-    const transformedPlans = trainingPlans.map(plan => ({
-      id: plan.id,
-      title: plan.title,
-      duration: plan.duration,
-      intensity: plan.intensity,
-      completed: plan.completed,
-      exercises: plan.exercises,
-      assignedTo: plan.assignedTo,
-      createdBy: plan.createdBy,
-      date: plan.date,
-      completedDate: plan.completedDate
-    }))
-
-    return NextResponse.json(transformedPlans)
+    return NextResponse.json(trainingPlans)
   } catch (error) {
     console.error('Помилка завантаження тренувань:', error)
     return NextResponse.json(

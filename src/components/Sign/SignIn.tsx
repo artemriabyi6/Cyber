@@ -54,7 +54,7 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-2">⚽ Вхід в систему</h1>
         <p className="text-gray-600 text-center mb-8">Увійдіть в свій обліковий запис</p>

@@ -72,7 +72,7 @@ export default function SignUp() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
         <h1 className="text-2xl font-bold text-center mb-2">⚽ Реєстрація</h1>
         <p className="text-gray-600 text-center mb-8">Створіть новий обліковий запис</p>
@@ -80,7 +80,7 @@ export default function SignUp() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Ім'я
+              {`Ім'я`}
             </label>
             <input
               type="text"

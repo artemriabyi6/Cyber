@@ -724,6 +724,23 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+// Додаємо інтерфейси для тренувань та цілей
+interface RecentTraining {
+  id: string;
+  date: string;
+  duration: string;
+  performance: number;
+  title?: string;
+}
+
+interface GoalProgress {
+  id: string;
+  title: string;
+  currentValue: number;
+  targetValue: number;
+  progress?: number;
+}
+
 interface StatisticsData {
   overview: {
     totalTrainings: number;
@@ -747,8 +764,8 @@ interface StatisticsData {
     improvement: number;
     improvementPercent: string;
   }[];
-  recentTrainings: any[];
-  goalsProgress: any[];
+  recentTrainings: RecentTraining[];
+  goalsProgress: GoalProgress[];
 }
 
 export default function StatisticsPage() {
@@ -762,7 +779,7 @@ export default function StatisticsPage() {
     try {
       const response = await fetch('/api/statistics');
       if (response.ok) {
-        const statsData = await response.json();
+        const statsData: StatisticsData = await response.json();
         setStatistics(statsData);
       }
     } catch (error) {
@@ -799,7 +816,7 @@ export default function StatisticsPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження статистики...</p>
@@ -814,7 +831,7 @@ export default function StatisticsPage() {
 
   if (!statistics) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">Не вдалося завантажити статистику</p>
         </div>
@@ -825,7 +842,7 @@ export default function StatisticsPage() {
   const { overview, monthlyStats, skillProgress, recentTrainings, goalsProgress } = statistics;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100">
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -919,7 +936,7 @@ export default function StatisticsPage() {
                           <span className="text-lg">⚽</span>
                           <div>
                             <p className="font-medium text-gray-900">
-                              Тренування {new Date(training.date).toLocaleDateString('uk-UA')}
+                              {training.title || `Тренування ${new Date(training.date).toLocaleDateString('uk-UA')}`}
                             </p>
                             <p className="text-sm text-gray-600">{training.duration}</p>
                           </div>
@@ -982,7 +999,7 @@ export default function StatisticsPage() {
                         
                         <div className="w-full bg-gray-200 rounded-full h-3">
                           <div
-                            className="bg-gradient-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500"
+                            className="bg-linear-to-r from-green-400 to-green-600 h-3 rounded-full transition-all duration-500"
                             style={{ width: `${skill.current}%` }}
                           ></div>
                         </div>

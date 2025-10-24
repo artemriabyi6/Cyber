@@ -34,7 +34,7 @@ export default function ArchivePage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/training-sessions/archive');
+      const response = await fetch('/api/training-plans');
       
       if (!response.ok) {
         throw new Error('Не вдалося завантажити тренування');
@@ -114,7 +114,7 @@ export default function ArchivePage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження архіву...</p>
@@ -128,7 +128,7 @@ export default function ArchivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -152,7 +152,7 @@ export default function ArchivePage() {
                 </p>
                 <p className="text-sm text-gray-500">Учень</p>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-10 h-10 bg-linear-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
                 {session.user?.name?.charAt(0) || "У"}
               </div>
             </div>
