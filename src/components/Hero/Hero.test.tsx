@@ -50,7 +50,7 @@ describe('HeroSection Football Coach', () => {
   test('має футбольну кольорову схему', () => {
     const htmlString = renderToString(<HeroSection />);
     
-    expect(htmlString).toContain('bg-gradient-to-br from-green-900');
+    expect(htmlString).toContain('bg-linear-to-br from-green-900');
     expect(htmlString).toContain('text-yellow-400');
     expect(htmlString).toContain('bg-yellow-400');
   });
