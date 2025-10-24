@@ -1596,7 +1596,7 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Actions - ВСІ ФУНКЦІОНАЛИ ЗАЛИШЕНІ */}
             <div className="bg-white rounded-xl shadow-sm border p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-6">
                 Швидкі дії
