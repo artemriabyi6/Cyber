@@ -864,7 +864,7 @@ export default function CoachDashboard() {
               </div>
             )}
 
-            {/* Trainings Tab */}
+            {/* Trainings Tab - ОНОВЛЕНА з кнопками редагування та відмітки */}
             {activeTab === "trainings" && (
               <div>
                 <div className="flex justify-between items-center mb-6">
@@ -989,7 +989,6 @@ export default function CoachDashboard() {
               </div>
             )}
 
-            {/* Students Tab */}
             {activeTab === "students" && (
               <div>
                 <h3 className="text-lg font-semibold mb-6">
@@ -1101,7 +1100,7 @@ export default function CoachDashboard() {
         </div>
       </main>
 
-      {/* Modal для додавання тренування */}
+      {/* Modal для додавання тренування - залишається незмінним */}
       {showAddTraining && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
