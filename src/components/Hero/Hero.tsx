@@ -99,7 +99,7 @@ import Link from "next/link";
 
 const HeroSection = () => {
   return (
-    <section className="min-h-screen bg-gradient-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center px-4 py-8 relative overflow-hidden">
+    <section className="min-h-screen bg-linear-to-br from-green-900 via-green-800 to-emerald-900 flex items-center justify-center px-4 py-8 relative overflow-hidden">
       {/* Фонові елементи */}
       <div className="absolute inset-0 bg-black/20"></div>
       <div className="absolute top-10 left-10 w-20 h-20 bg-white/10 rounded-full animate-pulse"></div>
@@ -116,7 +116,7 @@ const HeroSection = () => {
             </div>
 
             <h1 className="text-4xl lg:text-6xl font-bold leading-tight mb-6">
-              <span className="bg-gradient-to-r from-white to-green-200 bg-clip-text text-transparent">
+              <span className="bg-linear-to-r from-white to-green-200 bg-clip-text text-transparent">
                 Стань кращим
               </span>
               <br />
@@ -134,7 +134,7 @@ const HeroSection = () => {
             <div className="flex flex-col sm:flex-row gap-4 mb-12 justify-center lg:justify-start">
               <Link 
                 href='/signup'
-                className="px-8 py-4 bg-gradient-to-r from-yellow-400 to-yellow-500 text-green-900 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 hover:from-yellow-300 hover:to-yellow-400 flex items-center justify-center"
+                className="px-8 py-4 bg-linear-to-r from-yellow-400 to-yellow-500 text-green-900 font-bold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 hover:from-yellow-300 hover:to-yellow-400 flex items-center justify-center"
               >
                 <span className="mr-2">⚽</span>
                 Розпочати тренування
@@ -151,19 +151,19 @@ const HeroSection = () => {
             {/* Переваги */}
             <div className="space-y-4 max-w-md mx-auto lg:mx-0">
               <div className="flex items-center gap-3 text-green-100">
-                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center flex-shrink-0 border border-yellow-400/30">
+                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center shrink-0 border border-yellow-400/30">
                   <span className="font-bold text-yellow-400">⚽</span>
                 </div>
                 <span className="text-lg">Індивідуальний підхід</span>
               </div>
               <div className="flex items-center gap-3 text-green-100">
-                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center flex-shrink-0 border border-yellow-400/30">
+                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center shrink-0 border border-yellow-400/30">
                   <span className="font-bold text-yellow-400">🎯</span>
                 </div>
                 <span className="text-lg">Техніка та тактика</span>
               </div>
               <div className="flex items-center gap-3 text-green-100">
-                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center flex-shrink-0 border border-yellow-400/30">
+                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center shrink-0 border border-yellow-400/30">
                   <span className="font-bold text-yellow-400">📊</span>
                 </div>
                 <span className="text-lg">Аналіз прогресу</span>
@@ -192,7 +192,7 @@ const HeroSection = () => {
             <div className="relative w-80 h-80 lg:w-96 lg:h-96 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
               {/* Футбольне поле як фон */}
               <div className="absolute inset-0 bg-green-700/30">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-emerald-800/20"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-green-600/20 to-emerald-800/20"></div>
                 {/* Лінії поля */}
                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/30"></div>
                 <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/30"></div>
@@ -213,7 +213,7 @@ const HeroSection = () => {
               {/* Центральний контент */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="w-24 h-24 lg:w-32 lg:h-32 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg border-2 border-white/20">
+                  <div className="w-24 h-24 lg:w-32 lg:h-32 bg-linear-to-br from-yellow-400 to-orange-500 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-lg border-2 border-white/20">
                     <span className="text-4xl lg:text-5xl">🏆</span>
                   </div>
                   <p className="text-white font-semibold text-lg bg-black/30 backdrop-blur-sm rounded-lg py-2 px-4">

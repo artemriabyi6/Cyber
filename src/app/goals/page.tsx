@@ -1,3 +1,4 @@
+// app/goals/page.tsx
 "use client";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
@@ -7,15 +8,14 @@ interface Goal {
   id: string;
   title: string;
   description: string;
-  category: "technical" | "physical" | "tactical" | "mental";
+  category: string;
   targetValue: number;
   currentValue: number;
   deadline: string;
-  status: "active" | "completed" | "overdue";
   priority: "low" | "medium" | "high";
-  createdAt: string;
   exercises: string[];
-  userId: string;
+  status: "active" | "completed" | "cancelled";
+  createdAt: string;
 }
 
 export default function GoalsPage() {
@@ -23,41 +23,26 @@ export default function GoalsPage() {
   const router = useRouter();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<string>("all");
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newGoal, setNewGoal] = useState({
+  const [showForm, setShowForm] = useState(false);
+  const [formData, setFormData] = useState({
     title: "",
     description: "",
-    category: "technical" as Goal["category"],
+    category: "technical",
     targetValue: 100,
     deadline: "",
-    priority: "medium" as Goal["priority"],
+    priority: "medium" as "low" | "medium" | "high",
     exercises: [""]
   });
 
   const fetchGoals = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      if (!session?.user?.id) {
-        throw new Error("Користувач не авторизований");
+      const response = await fetch('/api/goals');
+      if (response.ok) {
+        const goalsData = await response.json();
+        setGoals(goalsData);
       }
-
-      const response = await fetch(
-        `http://localhost:3001/goals?userId=${session.user.id}`
-      );
-      
-      if (!response.ok) {
-        throw new Error("Не вдалося завантажити цілі");
-      }
-
-      const userGoals = await response.json();
-      setGoals(userGoals);
-    } catch (err) {
-      console.error("Помилка завантаження цілей:", err);
-      setError("Не вдалося завантажити цілі. Спробуйте пізніше.");
+    } catch (error) {
+      console.error('Помилка завантаження цілей:', error);
     } finally {
       setLoading(false);
     }
@@ -67,37 +52,27 @@ export default function GoalsPage() {
     if (status === "unauthenticated") {
       router.push("/signin");
     } else if (status === "authenticated") {
-      if (session.user?.role === "coach") {
-        router.push("/coach-dashboard");
-        return;
-      }
       fetchGoals();
     }
-  }, [status, session, router]);
+  }, [status, router]);
 
-  const addGoal = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
     try {
-      const goalToAdd: Goal = {
-        ...newGoal,
-        id: Date.now().toString(), // Конвертуємо в рядок
-        userId: session?.user?.id || "",
-        currentValue: 0,
-        status: "active",
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-
-      const response = await fetch("http://localhost:3001/goals", {
-        method: "POST",
+      const response = await fetch('/api/goals', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(goalToAdd),
+        body: JSON.stringify(formData),
       });
 
       if (response.ok) {
-        setGoals(prev => [...prev, goalToAdd]);
-        setIsAddModalOpen(false);
-        setNewGoal({
+        const newGoal = await response.json();
+        setGoals(prev => [newGoal, ...prev]);
+        setShowForm(false);
+        setFormData({
           title: "",
           description: "",
           category: "technical",
@@ -107,92 +82,96 @@ export default function GoalsPage() {
           exercises: [""]
         });
       }
-    } catch (err) {
-      console.error("Помилка додавання цілі:", err);
+    } catch (error) {
+      console.error('Помилка створення цілі:', error);
     }
   };
 
-  const updateGoalProgress = async (goalId: string, newValue: number) => {
+  const updateGoalProgress = async (goalId: string, currentValue: number) => {
     try {
-      const goal = goals.find(g => g.id === goalId);
-      if (!goal) return;
-
-      const updatedGoal = {
-        ...goal,
-        currentValue: newValue,
-        status: newValue >= goal.targetValue ? "completed" : goal.status
-      };
-
-      const response = await fetch(`http://localhost:3001/goals/${goalId}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'PATCH',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updatedGoal),
+        body: JSON.stringify({ currentValue }),
       });
 
       if (response.ok) {
-        setGoals(prev =>
-          prev.map(goal =>
-            goal.id === goalId ? updatedGoal : goal
-          )
-        );
+        const updatedGoal = await response.json();
+        setGoals(prev => prev.map(goal => 
+          goal.id === goalId ? updatedGoal : goal
+        ));
       }
-    } catch (err) {
-      console.error("Помилка оновлення цілі:", err);
+    } catch (error) {
+      console.error('Помилка оновлення цілі:', error);
+    }
+  };
+
+  const completeGoal = async (goalId: string) => {
+    try {
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'completed', currentValue: 100 }),
+      });
+
+      if (response.ok) {
+        const updatedGoal = await response.json();
+        setGoals(prev => prev.map(goal => 
+          goal.id === goalId ? updatedGoal : goal
+        ));
+      }
+    } catch (error) {
+      console.error('Помилка завершення цілі:', error);
     }
   };
 
   const deleteGoal = async (goalId: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/goals/${goalId}`, {
-        method: "DELETE",
+      const response = await fetch(`/api/goals/${goalId}`, {
+        method: 'DELETE',
       });
 
       if (response.ok) {
         setGoals(prev => prev.filter(goal => goal.id !== goalId));
       }
-    } catch (err) {
-      console.error("Помилка видалення цілі:", err);
+    } catch (error) {
+      console.error('Помилка видалення цілі:', error);
     }
   };
 
-  const getCategoryIcon = (category: Goal["category"]) => {
-    switch (category) {
-      case "technical": return "⚽";
-      case "physical": return "💪";
-      case "tactical": return "🧠";
-      case "mental": return "😌";
-      default: return "🎯";
-    }
+  const getProgressColor = (percentage: number) => {
+    if (percentage >= 90) return 'bg-green-500';
+    if (percentage >= 70) return 'bg-yellow-500';
+    if (percentage >= 50) return 'bg-orange-500';
+    return 'bg-red-500';
   };
 
-  const getPriorityColor = (priority: Goal["priority"]) => {
+  const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "high": return "red";
-      case "medium": return "yellow";
-      case "low": return "green";
-      default: return "gray";
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getStatusColor = (status: Goal["status"]) => {
-    switch (status) {
-      case "completed": return "green";
-      case "overdue": return "red";
-      case "active": return "blue";
-      default: return "gray";
+  const getCategoryIcon = (category: string) => {
+    switch (category) {
+      case 'technical': return '⚽';
+      case 'physical': return '💪';
+      case 'tactical': return '🧠';
+      case 'mental': return '🧘';
+      default: return '🎯';
     }
   };
-
-  const filteredGoals = goals.filter(goal => {
-    if (activeFilter === "all") return true;
-    return goal.status === activeFilter;
-  });
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження цілей...</p>
@@ -205,418 +184,314 @@ export default function GoalsPage() {
     return null;
   }
 
+  const activeGoals = goals.filter(goal => goal.status === 'active');
+  const completedGoals = goals.filter(goal => goal.status === 'completed');
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
-      {/* Header */}
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100">
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
+            <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.push("/dashboard")}
-                className="mr-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <span className="text-lg">←</span>
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">
-                🎯 Мої цілі
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">🎯 Мої цілі</h1>
             </div>
-
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {session.user?.name}
-                </p>
-                <p className="text-sm text-gray-500">Учень</p>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
-                {session.user?.name?.charAt(0) || "У"}
-              </div>
+              <button
+                onClick={() => setShowForm(true)}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                + Нова ціль
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Header */}
+        {/* Статистика */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Всього цілей</p>
-                <p className="text-2xl font-bold text-gray-900">{goals.length}</p>
-              </div>
-              <div className="text-2xl">🎯</div>
-            </div>
+          <div className="bg-white rounded-xl shadow-sm border p-6 text-center">
+            <div className="text-2xl font-bold text-blue-600">{goals.length}</div>
+            <div className="text-sm text-gray-600">Всього цілей</div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Активні</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {goals.filter(g => g.status === "active").length}
-                </p>
-              </div>
-              <div className="text-2xl">📈</div>
-            </div>
+          <div className="bg-white rounded-xl shadow-sm border p-6 text-center">
+            <div className="text-2xl font-bold text-green-600">{activeGoals.length}</div>
+            <div className="text-sm text-gray-600">Активних</div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Завершені</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {goals.filter(g => g.status === "completed").length}
-                </p>
-              </div>
-              <div className="text-2xl">✅</div>
-            </div>
+          <div className="bg-white rounded-xl shadow-sm border p-6 text-center">
+            <div className="text-2xl font-bold text-purple-600">{completedGoals.length}</div>
+            <div className="text-sm text-gray-600">Завершених</div>
           </div>
-
-          <div className="bg-white rounded-xl shadow-sm border p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Успішність</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {goals.length > 0 
-                    ? Math.round((goals.filter(g => g.status === "completed").length / goals.length) * 100)
-                    : 0
-                  }%
-                </p>
-              </div>
-              <div className="text-2xl">🏆</div>
+          <div className="bg-white rounded-xl shadow-sm border p-6 text-center">
+            <div className="text-2xl font-bold text-orange-600">
+              {activeGoals.length > 0 
+                ? Math.round(activeGoals.reduce((acc, goal) => acc + (goal.currentValue / goal.targetValue * 100), 0) / activeGoals.length)
+                : 0
+              }%
             </div>
+            <div className="text-sm text-gray-600">Середній прогрес</div>
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveFilter("all")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === "all"
-                  ? "bg-green-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Всі цілі
-            </button>
-            <button
-              onClick={() => setActiveFilter("active")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === "active"
-                  ? "bg-blue-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Активні
-            </button>
-            <button
-              onClick={() => setActiveFilter("completed")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === "completed"
-                  ? "bg-green-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Завершені
-            </button>
-            <button
-              onClick={() => setActiveFilter("overdue")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                activeFilter === "overdue"
-                  ? "bg-red-500 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              Протерміновані
-            </button>
-          </div>
-
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2"
-          >
-            <span>+</span>
-            <span>Додати ціль</span>
-          </button>
-        </div>
-
-        {/* Goals Grid */}
-        {error ? (
-          <div className="text-center py-12">
-            <div className="text-red-500 text-xl mb-4">😔</div>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <button
-              onClick={fetchGoals}
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg"
-            >
-              Спробувати знову
-            </button>
-          </div>
-        ) : filteredGoals.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-sm border">
-            <div className="text-6xl mb-4">🎯</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {activeFilter === "all" ? "Ще немає цілей" : "Не знайдено цілей"}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              {activeFilter === "all" 
-                ? "Створіть свою першу ціль, щоб почати відстежувати прогрес"
-                : "Немає цілей з обраним фільтром"
-              }
-            </p>
-            {activeFilter === "all" && (
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium"
-              >
-                Створити ціль
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredGoals.map((goal) => (
-              <div
-                key={goal.id}
-                className="bg-white rounded-xl shadow-sm border hover:shadow-md transition-shadow duration-200"
-              >
-                {/* Goal Header */}
-                <div className="p-6 border-b">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">
-                        {getCategoryIcon(goal.category)}
-                      </span>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">
-                          {goal.title}
-                        </h3>
-                        <p className="text-sm text-gray-500">
-                          {goal.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium bg-${getPriorityColor(goal.priority)}-100 text-${getPriorityColor(goal.priority)}-800`}
-                      >
-                        {goal.priority === "high" ? "Високий" : goal.priority === "medium" ? "Середній" : "Низький"}
-                      </span>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium bg-${getStatusColor(goal.status)}-100 text-${getStatusColor(goal.status)}-800`}
-                      >
-                        {goal.status === "completed" ? "Завершено" : goal.status === "overdue" ? "Протерміновано" : "Активна"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm text-gray-600 mb-1">
-                      <span>Прогрес</span>
-                      <span>{goal.currentValue} / {goal.targetValue}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          goal.status === "completed" 
-                            ? "bg-green-500" 
-                            : goal.status === "overdue"
-                            ? "bg-red-500"
-                            : "bg-gradient-to-r from-green-500 to-emerald-600"
-                        }`}
-                        style={{ 
-                          width: `${Math.min((goal.currentValue / goal.targetValue) * 100, 100)}%` 
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  {/* Deadline */}
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <span>Дедлайн: {new Date(goal.deadline).toLocaleDateString()}</span>
-                    <span>
-                      {Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} днів
-                    </span>
-                  </div>
+        {/* Форма створення нової цілі */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4">🎯 Нова ціль</h2>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Назва цілі *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    required
+                  />
                 </div>
 
-                {/* Exercises */}
-                <div className="p-4 border-b">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Вправи:</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {goal.exercises.map((exercise, index) => (
-                      <span
-                        key={index}
-                        className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs"
-                      >
-                        {exercise}
-                      </span>
-                    ))}
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Опис
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
                 </div>
 
-                {/* Actions */}
-                <div className="p-4 flex justify-between">
-                  <button
-                    onClick={() => updateGoalProgress(goal.id, Math.min(goal.currentValue + 10, goal.targetValue))}
-                    disabled={goal.status === "completed"}
-                    className={`px-3 py-1 rounded text-sm font-medium ${
-                      goal.status === "completed"
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "bg-green-500 hover:bg-green-600 text-white"
-                    }`}
-                  >
-                    + Прогрес
-                  </button>
-
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => deleteGoal(goal.id)}
-                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-medium"
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Категорія *
+                    </label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({...formData, category: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     >
-                      Видалити
-                    </button>
+                      <option value="technical">Техніка</option>
+                      <option value="physical">Фізична підготовка</option>
+                      <option value="tactical">Тактика</option>
+                      <option value="mental">Психологія</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Пріоритет
+                    </label>
+                    <select
+                      value={formData.priority}
+                      onChange={(e) => setFormData({...formData, priority: e.target.value as "low" | "medium" | "high"})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    >
+                      <option value="low">Низький</option>
+                      <option value="medium">Середній</option>
+                      <option value="high">Високий</option>
+                    </select>
                   </div>
                 </div>
-              </div>
-            ))}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Цільове значення *
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.targetValue}
+                      onChange={(e) => setFormData({...formData, targetValue: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      min="1"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Дедлайн *
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.deadline}
+                      onChange={(e) => setFormData({...formData, deadline: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex space-x-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Створити ціль
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Скасувати
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
-      </main>
 
-      {/* Add Goal Modal */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-lg max-w-md w-full p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Нова ціль
-            </h3>
+        {/* Список цілей */}
+        <div className="space-y-6">
+          {/* Активні цілі */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Активні цілі ({activeGoals.length})
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {activeGoals.map((goal) => {
+                const progress = Math.min(Math.round((goal.currentValue / goal.targetValue) * 100), 100);
+                const daysLeft = Math.ceil((new Date(goal.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                
+                return (
+                  <div key={goal.id} className="bg-white rounded-xl shadow-sm border p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">{getCategoryIcon(goal.category)}</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{goal.title}</h3>
+                          <span className={`px-2 py-1 rounded text-xs ${getPriorityColor(goal.priority)}`}>
+                            {goal.priority === 'high' ? 'Високий' : goal.priority === 'medium' ? 'Середній' : 'Низький'} пріоритет
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteGoal(goal.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        🗑️
+                      </button>
+                    </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Назва цілі
-                </label>
-                <input
-                  type="text"
-                  value={newGoal.title}
-                  onChange={(e) => setNewGoal({...newGoal, title: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Наприклад: Покращити точність пасу"
-                />
-              </div>
+                    {goal.description && (
+                      <p className="text-gray-600 text-sm mb-4">{goal.description}</p>
+                    )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Опис
-                </label>
-                <textarea
-                  value={newGoal.description}
-                  onChange={(e) => setNewGoal({...newGoal, description: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  rows={2}
-                  placeholder="Детальний опис цілі..."
-                />
-              </div>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-sm text-gray-600 mb-1">
+                          <span>Прогрес: {goal.currentValue}/{goal.targetValue}</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${getProgressColor(progress)} transition-all duration-500`}
+                            style={{ width: `${progress}%` }}
+                          ></div>
+                        </div>
+                      </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Категорія
-                  </label>
-                  <select
-                    value={newGoal.category}
-                    onChange={(e) => setNewGoal({...newGoal, category: e.target.value as Goal["category"]})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="technical">Технічна</option>
-                    <option value="physical">Фізична</option>
-                    <option value="tactical">Тактична</option>
-                    <option value="mental">Ментальна</option>
-                  </select>
-                </div>
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Дедлайн: {new Date(goal.deadline).toLocaleDateString('uk-UA')}</span>
+                        <span className={daysLeft < 7 ? 'text-red-600 font-medium' : ''}>
+                          {daysLeft > 0 ? `Залишилось ${daysLeft} днів` : 'Протерміновано'}
+                        </span>
+                      </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Пріоритет
-                  </label>
-                  <select
-                    value={newGoal.priority}
-                    onChange={(e) => setNewGoal({...newGoal, priority: e.target.value as Goal["priority"]})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
-                    <option value="low">Низький</option>
-                    <option value="medium">Середній</option>
-                    <option value="high">Високий</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Цільове значення
-                  </label>
-                  <input
-                    type="number"
-                    value={newGoal.targetValue}
-                    onChange={(e) => setNewGoal({...newGoal, targetValue: parseInt(e.target.value)})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Дедлайн
-                  </label>
-                  <input
-                    type="date"
-                    value={newGoal.deadline}
-                    onChange={(e) => setNewGoal({...newGoal, deadline: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Вправи (через кому)
-                </label>
-                <input
-                  type="text"
-                  value={newGoal.exercises.join(", ")}
-                  onChange={(e) => setNewGoal({...newGoal, exercises: e.target.value.split(", ")})}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Вправа 1, Вправа 2, ..."
-                />
-              </div>
+                      <div className="flex space-x-2 pt-2">
+                        <input
+                          type="number"
+                          min="0"
+                          max={goal.targetValue}
+                          value={goal.currentValue}
+                          onChange={(e) => updateGoalProgress(goal.id, parseInt(e.target.value))}
+                          className="flex-1 px-3 py-1 border border-gray-300 rounded text-sm"
+                        />
+                        <button
+                          onClick={() => completeGoal(goal.id)}
+                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                        >
+                          Завершити
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
-              >
-                Скасувати
-              </button>
-              <button
-                onClick={addGoal}
-                disabled={!newGoal.title || !newGoal.deadline}
-                className="bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium"
-              >
-                Створити ціль
-              </button>
-            </div>
+            {activeGoals.length === 0 && (
+              <div className="bg-white rounded-xl shadow-sm border p-8 text-center">
+                <div className="text-4xl mb-4">🎯</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Немає активних цілей
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Створіть свою першу ціль для покращення навичок
+                </p>
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Створити ціль
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Завершені цілі */}
+          {completedGoals.length > 0 && (
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Завершені цілі ({completedGoals.length})
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {completedGoals.map((goal) => (
+                  <div key={goal.id} className="bg-green-50 rounded-xl border border-green-200 p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">{getCategoryIcon(goal.category)}</span>
+                        <div>
+                          <h3 className="font-semibold text-gray-900">{goal.title}</h3>
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">
+                            Завершено
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteGoal(goal.id)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-green-600 font-medium">
+                        Досягнуто: {goal.currentValue}/{goal.targetValue}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {new Date(goal.deadline).toLocaleDateString('uk-UA')}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </main>
     </div>
   );
 }

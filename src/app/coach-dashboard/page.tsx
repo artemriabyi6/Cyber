@@ -57,9 +57,7 @@ export default function CoachDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [students, setStudents] = useState<User[]>([]);
   const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
-  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>(
-    []
-  );
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>([]);
   const [nextTrainings, setNextTrainings] = useState<NextTraining[]>([]);
   const [stats, setStats] = useState<CoachStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,9 +65,7 @@ export default function CoachDashboard() {
   const [showSetNextTraining, setShowSetNextTraining] = useState(false);
   const [showEditTraining, setShowEditTraining] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [selectedTraining, setSelectedTraining] = useState<TrainingPlan | null>(
-    null
-  );
+  const [, setSelectedTraining] = useState<TrainingPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Форма для нового тренування
@@ -113,7 +109,7 @@ export default function CoachDashboard() {
       }
       fetchCoachData();
     }
-  }, [status, session]);
+  }, [status, session, router]);
 
   const fetchCoachData = async () => {
     try {
@@ -122,37 +118,27 @@ export default function CoachDashboard() {
 
       console.log("Завантаження даних тренера...");
 
-      const [studentsRes, trainingPlansRes, sessionsRes, nextTrainingsRes] =
-        await Promise.all([
-          fetch("http://localhost:3001/users?role=student"),
-          fetch("http://localhost:3001/trainingPlans"),
-          fetch("http://localhost:3001/trainingSessions"),
-          fetch("http://localhost:3001/nextTrainings"),
-        ]);
+      // Використовуємо наші API endpoints
+      const [studentsRes, trainingPlansRes, sessionsRes, nextTrainingsRes] = await Promise.all([
+        fetch('/api/users/students'),
+        fetch('/api/training-plans'),
+        fetch('/api/training-sessions'),
+        fetch('/api/next-trainings'),
+      ]);
 
       if (!studentsRes.ok) {
         throw new Error(`Помилка завантаження учнів: ${studentsRes.status}`);
       }
       if (!trainingPlansRes.ok) {
-        throw new Error(
-          `Помилка завантаження тренувань: ${trainingPlansRes.status}`
-        );
+        throw new Error(`Помилка завантаження тренувань: ${trainingPlansRes.status}`);
       }
 
-      const [studentsData, trainingPlansData] = await Promise.all([
+      const [studentsData, trainingPlansData, sessionsData, nextTrainingsData] = await Promise.all([
         studentsRes.json(),
         trainingPlansRes.json(),
+        sessionsRes.ok ? sessionsRes.json() : [],
+        nextTrainingsRes.ok ? nextTrainingsRes.json() : [],
       ]);
-
-      let sessionsData: TrainingSession[] = [];
-      if (sessionsRes.ok) {
-        sessionsData = await sessionsRes.json();
-      }
-
-      let nextTrainingsData: NextTraining[] = [];
-      if (nextTrainingsRes.ok) {
-        nextTrainingsData = await nextTrainingsRes.json();
-      }
 
       console.log("Завантажено:", {
         students: studentsData.length,
@@ -169,20 +155,11 @@ export default function CoachDashboard() {
       // Розрахунок статистики
       const coachStats: CoachStats = {
         totalStudents: studentsData.length,
-        completedTrainings: sessionsData.filter(
-          (s: TrainingSession) => s.completed
-        ).length,
-        upcomingTrainings: trainingPlansData.filter(
-          (t: TrainingPlan) => !t.completed
-        ).length,
-        averagePerformance:
-          sessionsData.length > 0
-            ? sessionsData.reduce(
-                (acc: number, session: TrainingSession) =>
-                  acc + session.performance,
-                0
-              ) / sessionsData.length
-            : 0,
+        completedTrainings: sessionsData.filter((s: TrainingSession) => s.completed).length,
+        upcomingTrainings: trainingPlansData.filter((t: TrainingPlan) => !t.completed).length,
+        averagePerformance: sessionsData.length > 0 
+          ? sessionsData.reduce((acc: number, session: TrainingSession) => acc + session.performance, 0) / sessionsData.length
+          : 0,
       };
 
       setStats(coachStats);
@@ -214,29 +191,26 @@ export default function CoachDashboard() {
       }
 
       const trainingData = {
-        id: Date.now().toString(),
         title: newTraining.title.trim(),
         duration: newTraining.duration || "45 хв",
         intensity: newTraining.intensity,
         exercises: newTraining.exercises.filter((ex) => ex.trim() !== ""),
         assignedTo: newTraining.assignedTo,
-        createdBy: session?.user?.id,
         date: newTraining.date,
         completed: false,
       };
 
-   
-
-      const response = await fetch("http://localhost:3001/trainingPlans", {
-        method: "POST",
+      const response = await fetch('/api/training-plans', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify(trainingData),
       });
 
       if (!response.ok) {
-        throw new Error(`Помилка сервера: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
       }
 
       const createdTraining = await response.json();
@@ -255,11 +229,7 @@ export default function CoachDashboard() {
       fetchCoachData();
     } catch (error) {
       console.error("Помилка додавання тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при додаванні тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при додаванні тренування");
     }
   };
 
@@ -294,19 +264,17 @@ export default function CoachDashboard() {
 
       console.log("Оновлюємо тренування:", trainingData);
 
-      const response = await fetch(
-        `http://localhost:3001/trainingPlans/${editTraining.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(trainingData),
-        }
-      );
+      const response = await fetch(`/api/training-plans/${editTraining.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(trainingData),
+      });
 
       if (!response.ok) {
-        throw new Error(`Помилка сервера: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
       }
 
       const updatedTraining = await response.json();
@@ -327,11 +295,7 @@ export default function CoachDashboard() {
       fetchCoachData();
     } catch (error) {
       console.error("Помилка редагування тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при редагуванні тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при редагуванні тренування");
     }
   };
 
@@ -358,26 +322,20 @@ export default function CoachDashboard() {
     try {
       setError(null);
 
-      const response = await fetch(
-        `http://localhost:3001/trainingPlans/${trainingId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`/api/training-plans/${trainingId}`, {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
-        throw new Error(`Помилка видалення: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Помилка видалення: ${response.status}`);
       }
 
       console.log("Тренування видалено:", trainingId);
       fetchCoachData();
     } catch (error) {
       console.error("Помилка видалення тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при видаленні тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при видаленні тренування");
     }
   };
 
@@ -392,7 +350,6 @@ export default function CoachDashboard() {
       // Створюємо сесії тренування для кожного учня
       const sessionPromises = training.assignedTo.map(async (userId) => {
         const sessionData = {
-          id: Date.now() + Math.random().toString(),
           trainingPlanId: trainingId,
           userId: userId,
           date: new Date().toISOString().split("T")[0],
@@ -402,10 +359,10 @@ export default function CoachDashboard() {
           completed: true,
         };
 
-        return fetch("http://localhost:3001/trainingSessions", {
-          method: "POST",
+        return fetch('/api/training-sessions', {
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify(sessionData),
         });
@@ -414,35 +371,27 @@ export default function CoachDashboard() {
       await Promise.all(sessionPromises);
 
       // Оновлюємо тренування як завершене
-      const trainingResponse = await fetch(
-        `http://localhost:3001/trainingPlans/${trainingId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            completed: true,
-            completedDate: new Date().toISOString().split("T")[0],
-          }),
-        }
-      );
+      const trainingResponse = await fetch(`/api/training-plans/${trainingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          completed: true,
+          completedDate: new Date().toISOString().split("T")[0],
+        }),
+      });
 
       if (!trainingResponse.ok) {
-        throw new Error(
-          `Помилка оновлення тренування: ${trainingResponse.status}`
-        );
+        const errorData = await trainingResponse.json();
+        throw new Error(errorData.error || `Помилка оновлення тренування: ${trainingResponse.status}`);
       }
 
       console.log("Тренування відмічено як завершене для всіх учнів");
       fetchCoachData();
     } catch (error) {
       console.error("Помилка відмітки тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при відмітці тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при відмітці тренування");
     }
   };
 
@@ -457,47 +406,39 @@ export default function CoachDashboard() {
       );
 
       const deletePromises = sessionsToDelete.map((session) =>
-        fetch(`http://localhost:3001/trainingSessions/${session.id}`, {
-          method: "DELETE",
+        fetch(`/api/training-sessions/${session.id}`, {
+          method: 'DELETE',
         })
       );
 
       await Promise.all(deletePromises);
 
       // Оновлюємо тренування як незавершене
-      const trainingResponse = await fetch(
-        `http://localhost:3001/trainingPlans/${trainingId}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            completed: false,
-            completedDate: null,
-          }),
-        }
-      );
+      const trainingResponse = await fetch(`/api/training-plans/${trainingId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          completed: false,
+          completedDate: null,
+        }),
+      });
 
       if (!trainingResponse.ok) {
-        throw new Error(
-          `Помилка оновлення тренування: ${trainingResponse.status}`
-        );
+        const errorData = await trainingResponse.json();
+        throw new Error(errorData.error || `Помилка оновлення тренування: ${trainingResponse.status}`);
       }
 
       console.log("Тренування відмічено як незавершене");
       fetchCoachData();
     } catch (error) {
       console.error("Помилка відмітки тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при відмітці тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при відмітці тренування");
     }
   };
 
-  // НОВА ФУНКЦІЯ: Встановлення наступного тренування
+  // Функція для встановлення наступного тренування
   const setNextTraining = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) return;
@@ -505,17 +446,12 @@ export default function CoachDashboard() {
     try {
       setError(null);
 
-      if (
-        !nextTrainingForm.date ||
-        !nextTrainingForm.time ||
-        !nextTrainingForm.type
-      ) {
+      if (!nextTrainingForm.date || !nextTrainingForm.time || !nextTrainingForm.type) {
         setError("Будь ласка, заповніть обов'язкові поля");
         return;
       }
 
       const nextTrainingData = {
-        id: Date.now().toString(),
         userId: selectedStudent.id,
         date: nextTrainingForm.date,
         time: nextTrainingForm.time,
@@ -532,28 +468,26 @@ export default function CoachDashboard() {
 
       let response;
       if (existingNextTraining) {
-        response = await fetch(
-          `http://localhost:3001/nextTrainings/${existingNextTraining.id}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(nextTrainingData),
-          }
-        );
-      } else {
-        response = await fetch("http://localhost:3001/nextTrainings", {
-          method: "POST",
+        response = await fetch(`/api/next-trainings/${existingNextTraining.id}`, {
+          method: 'PUT',
           headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(nextTrainingData),
+        });
+      } else {
+        response = await fetch('/api/next-trainings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify(nextTrainingData),
         });
       }
 
       if (!response.ok) {
-        throw new Error(`Помилка сервера: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
       }
 
       console.log("Наступне тренування встановлено");
@@ -570,15 +504,11 @@ export default function CoachDashboard() {
       fetchCoachData();
     } catch (error) {
       console.error("Помилка встановлення тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при встановленні тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при встановленні тренування");
     }
   };
 
-  // НОВА ФУНКЦІЯ: Видалення наступного тренування
+  // Функція для видалення наступного тренування
   const removeNextTraining = async (studentId: string) => {
     try {
       setError(null);
@@ -586,30 +516,24 @@ export default function CoachDashboard() {
       const nextTraining = nextTrainings.find((nt) => nt.userId === studentId);
       if (!nextTraining) return;
 
-      const response = await fetch(
-        `http://localhost:3001/nextTrainings/${nextTraining.id}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const response = await fetch(`/api/next-trainings/${nextTraining.id}`, {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
-        throw new Error(`Помилка видалення: ${response.status}`);
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Помилка видалення: ${response.status}`);
       }
 
       console.log("Наступне тренування видалено");
       fetchCoachData();
     } catch (error) {
       console.error("Помилка видалення тренування:", error);
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Помилка при видаленні тренування"
-      );
+      setError(error instanceof Error ? error.message : "Помилка при видаленні тренування");
     }
   };
 
-  // НОВА ФУНКЦІЯ: Відкриття форми для встановлення наступного тренування
+  // Функція для відкриття форми для встановлення наступного тренування
   const openSetNextTraining = (student: User) => {
     setSelectedStudent(student);
 
@@ -638,7 +562,7 @@ export default function CoachDashboard() {
   };
 
   // Функції для роботи з вправами
-  const addExerciseField = (isEdit = false) => {
+  const addExerciseField = (isEdit: boolean = false) => {
     if (isEdit) {
       setEditTraining({
         ...editTraining,
@@ -652,7 +576,7 @@ export default function CoachDashboard() {
     }
   };
 
-  const updateExercise = (index: number, value: string, isEdit = false) => {
+  const updateExercise = (index: number, value: string, isEdit: boolean = false) => {
     if (isEdit) {
       const newExercises = [...editTraining.exercises];
       newExercises[index] = value;
@@ -670,7 +594,7 @@ export default function CoachDashboard() {
     }
   };
 
-  const removeExercise = (index: number, isEdit = false) => {
+  const removeExercise = (index: number, isEdit: boolean = false) => {
     if (isEdit) {
       const newExercises = editTraining.exercises.filter((_, i) => i !== index);
       setEditTraining({
@@ -688,7 +612,7 @@ export default function CoachDashboard() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження панелі тренера...</p>
@@ -702,7 +626,7 @@ export default function CoachDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -720,7 +644,7 @@ export default function CoachDashboard() {
                 </p>
                 <p className="text-sm text-gray-500">Тренер</p>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-10 h-10 bg-linear-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
                 {session.user?.name?.charAt(0) || "Т"}
               </div>
               <button
@@ -867,7 +791,7 @@ export default function CoachDashboard() {
                         (s) => s.id === session.userId
                       );
                       const training = trainingPlans.find(
-                        (t) => t.id == session.trainingPlanId
+                        (t) => t.id === session.trainingPlanId
                       );
                       return (
                         <div
@@ -927,7 +851,7 @@ export default function CoachDashboard() {
                     </button>
                     <button
                       onClick={() => router.push("/chat")}
-                      className="w-full text-left flex items-center space-x-3 p-4 border rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors duration-200"
+                      className="w-full text-left flex items-center space-x-3 p-4 bg-white border rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-colors duration-200"
                     >
                       <span className="text-2xl">👨‍🏫</span>
                       <span className="text-left">
@@ -1088,7 +1012,7 @@ export default function CoachDashboard() {
                         className="bg-white border rounded-lg p-6"
                       >
                         <div className="text-center">
-                          <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
+                          <div className="w-16 h-16 bg-linear-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-4">
                             {student.name.charAt(0)}
                           </div>
                           <h4 className="font-semibold text-gray-900">
@@ -1098,7 +1022,7 @@ export default function CoachDashboard() {
                             {student.email}
                           </p>
 
-                          {/* НОВИЙ БЛОК: Наступне тренування */}
+                          {/* Наступне тренування */}
                           {nextTraining && (
                             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
                               <p className="text-sm font-medium text-green-800">
@@ -1279,7 +1203,7 @@ export default function CoachDashboard() {
                       </label>
                       <button
                         type="button"
-                        onClick={addExerciseField}
+                        onClick={() => addExerciseField(false)}
                         className="text-blue-500 hover:text-blue-700 text-sm"
                       >
                         + Додати вправу
@@ -1292,7 +1216,7 @@ export default function CoachDashboard() {
                             type="text"
                             value={exercise}
                             onChange={(e) =>
-                              updateExercise(index, e.target.value)
+                              updateExercise(index, e.target.value, false)
                             }
                             className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder={`Вправа ${index + 1}`}
@@ -1300,7 +1224,7 @@ export default function CoachDashboard() {
                           {newTraining.exercises.length > 1 && (
                             <button
                               type="button"
-                              onClick={() => removeExercise(index)}
+                              onClick={() => removeExercise(index, false)}
                               className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
                             >
                               ×
@@ -1382,7 +1306,229 @@ export default function CoachDashboard() {
         </div>
       )}
 
-      {/* НОВИЙ MODAL: Для встановлення наступного тренування */}
+      {/* Modal для редагування тренування */}
+      {showEditTraining && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold">
+                  Редагувати тренування
+                </h3>
+                <button
+                  onClick={() => setShowEditTraining(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={updateTraining}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Назва тренування *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editTraining.title}
+                      onChange={(e) =>
+                        setEditTraining({
+                          ...editTraining,
+                          title: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Тривалість
+                      </label>
+                      <input
+                        type="text"
+                        value={editTraining.duration}
+                        onChange={(e) =>
+                          setEditTraining({
+                            ...editTraining,
+                            duration: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Дата *
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={editTraining.date}
+                        onChange={(e) =>
+                          setEditTraining({
+                            ...editTraining,
+                            date: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Складність
+                    </label>
+                    <select
+                      value={editTraining.intensity}
+                      onChange={(e) =>
+                        setEditTraining({
+                          ...editTraining,
+                          intensity: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="low">Низька</option>
+                      <option value="medium">Середня</option>
+                      <option value="high">Висока</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Вправи
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => addExerciseField(true)}
+                        className="text-blue-500 hover:text-blue-700 text-sm"
+                      >
+                        + Додати вправу
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {editTraining.exercises.map((exercise, index) => (
+                        <div key={index} className="flex gap-2">
+                          <input
+                            type="text"
+                            value={exercise}
+                            onChange={(e) =>
+                              updateExercise(index, e.target.value, true)
+                            }
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                          {editTraining.exercises.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeExercise(index, true)}
+                              className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Призначити учням *
+                    </label>
+                    <div className="space-y-2 max-h-32 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                      {students.map((student) => (
+                        <label
+                          key={student.id}
+                          className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={editTraining.assignedTo.includes(
+                              student.id
+                            )}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditTraining({
+                                  ...editTraining,
+                                  assignedTo: [
+                                    ...editTraining.assignedTo,
+                                    student.id,
+                                  ],
+                                });
+                              } else {
+                                setEditTraining({
+                                  ...editTraining,
+                                  assignedTo: editTraining.assignedTo.filter(
+                                    (id) => id !== student.id
+                                  ),
+                                });
+                              }
+                            }}
+                            className="rounded text-blue-500 focus:ring-blue-500"
+                          />
+                          <span>{student.name}</span>
+                          <span className="text-gray-500 text-sm">
+                            ({student.email})
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {editTraining.assignedTo.length === 0 && (
+                      <p className="text-red-500 text-sm mt-1">
+                        Виберіть хоча б одного учня
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={editTraining.completed}
+                        onChange={(e) =>
+                          setEditTraining({
+                            ...editTraining,
+                            completed: e.target.checked,
+                          })
+                        }
+                        className="rounded text-blue-500 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Тренування завершено
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditTraining(false)}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  >
+                    Скасувати
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+                  >
+                    Оновити тренування
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal для встановлення наступного тренування */}
       {showSetNextTraining && selectedStudent && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl max-w-md w-full">
@@ -1485,7 +1631,7 @@ export default function CoachDashboard() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Пов'язати з планом тренувань (необов'язково)
+                      {`Пов'язати з планом тренувань (необов'язково)`}
                     </label>
                     <select
                       value={nextTrainingForm.trainingPlanId}

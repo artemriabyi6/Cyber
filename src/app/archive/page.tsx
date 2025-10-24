@@ -1,10 +1,11 @@
+// app/archive/page.tsx
 "use client";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-interface TrainingPlan {
-  id: number;
+interface TrainingSession {
+  id: string;
   title: string;
   duration: string;
   intensity: "low" | "medium" | "high";
@@ -13,12 +14,14 @@ interface TrainingPlan {
   assignedTo: string[];
   date: string;
   completedDate?: string;
+  performance: number;
+  coachNotes: string;
 }
 
 export default function ArchivePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [trainingPlans, setTrainingPlans] = useState<TrainingPlan[]>([]);
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -26,27 +29,22 @@ export default function ArchivePage() {
   const [intensityFilter, setIntensityFilter] = useState("all");
   const trainingsPerPage = 10;
 
-  const fetchTrainingPlans = async () => {
+  const fetchTrainingSessions = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      if (!session?.user?.id) {
-        throw new Error("Користувач не авторизований");
+      const response = await fetch('/api/training-plans');
+      
+      if (!response.ok) {
+        throw new Error('Не вдалося завантажити тренування');
       }
 
-      const userId = session.user.id;
-
-      const trainingPlansRes = await fetch("http://localhost:3001/trainingPlans");
-      const allTrainingPlans = await trainingPlansRes.json();
-      const userTrainingPlans = allTrainingPlans.filter((plan: TrainingPlan) =>
-        plan.assignedTo.includes(userId) && plan.completed
-      );
-
-      setTrainingPlans(userTrainingPlans);
+      const sessions = await response.json();
+      setTrainingSessions(sessions);
     } catch (err) {
-      console.error("Помилка завантаження тренувань:", err);
-      setError("Не вдалося завантажити тренування. Спробуйте пізніше.");
+      console.error('Помилка завантаження тренувань:', err);
+      setError('Не вдалося завантажити тренування. Спробуйте пізніше.');
     } finally {
       setLoading(false);
     }
@@ -60,7 +58,7 @@ export default function ArchivePage() {
         router.push("/coach-dashboard");
         return;
       }
-      fetchTrainingPlans();
+      fetchTrainingSessions();
     }
   }, [status, session, router]);
 
@@ -95,7 +93,7 @@ export default function ArchivePage() {
   };
 
   // Фільтрація та пошук
-  const filteredTrainings = trainingPlans.filter(training => {
+  const filteredTrainings = trainingSessions.filter(training => {
     const matchesSearch = training.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          training.exercises.some(ex => ex.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesIntensity = intensityFilter === "all" || training.intensity === intensityFilter;
@@ -116,7 +114,7 @@ export default function ArchivePage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження архіву...</p>
@@ -130,7 +128,7 @@ export default function ArchivePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
+    <div className="min-h-screen bg-linear-to-br from-green-50 to-emerald-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -154,7 +152,7 @@ export default function ArchivePage() {
                 </p>
                 <p className="text-sm text-gray-500">Учень</p>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-10 h-10 bg-linear-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold">
                 {session.user?.name?.charAt(0) || "У"}
               </div>
             </div>
@@ -168,24 +166,24 @@ export default function ArchivePage() {
         <div className="bg-white rounded-xl shadow-sm border p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{trainingPlans.length}</div>
+              <div className="text-3xl font-bold text-blue-600">{trainingSessions.length}</div>
               <div className="text-sm text-gray-600">Всього тренувань</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-green-600">
-                {trainingPlans.filter(t => t.intensity === "low").length}
+                {trainingSessions.filter(t => t.intensity === "low").length}
               </div>
               <div className="text-sm text-gray-600">Низької інтенсивності</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-yellow-600">
-                {trainingPlans.filter(t => t.intensity === "medium").length}
+                {trainingSessions.filter(t => t.intensity === "medium").length}
               </div>
               <div className="text-sm text-gray-600">Середньої інтенсивності</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-red-600">
-                {trainingPlans.filter(t => t.intensity === "high").length}
+                {trainingSessions.filter(t => t.intensity === "high").length}
               </div>
               <div className="text-sm text-gray-600">Високої інтенсивності</div>
             </div>
@@ -253,6 +251,9 @@ export default function ArchivePage() {
                           <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">
                             Завершено
                           </span>
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm">
+                            Результат: {training.performance}%
+                          </span>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
@@ -269,6 +270,15 @@ export default function ArchivePage() {
                             <span>🔢 {training.exercises.length} вправ</span>
                           </div>
                         </div>
+
+                        {training.coachNotes && (
+                          <div className="mb-3">
+                            <h4 className="font-medium text-gray-700 mb-1">Нотатки тренера:</h4>
+                            <p className="text-gray-600 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                              {training.coachNotes}
+                            </p>
+                          </div>
+                        )}
 
                         {training.exercises && training.exercises.length > 0 && (
                           <div>

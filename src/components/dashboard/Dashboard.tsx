@@ -96,7 +96,7 @@ export default function Dashboard() {
 
   if (status === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-gray-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Завантаження дашборду...</p>
@@ -110,7 +110,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-blue-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -124,7 +124,7 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-gray-900">{session.user?.name}</p>
                 <p className="text-sm text-gray-500">{session.user?.email}</p>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+              <div className="w-10 h-10 bg-linear-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
                 {session.user?.name?.charAt(0) || 'U'}
               </div>
               <button
@@ -184,12 +184,12 @@ export default function Dashboard() {
               </div>
               
               {/* Simple Chart Placeholder */}
-              <div className="bg-gradient-to-b from-blue-50 to-indigo-50 rounded-lg p-8">
+              <div className="bg-linear-to-b from-blue-50 to-indigo-50 rounded-lg p-8">
                 <div className="flex items-end justify-between h-40">
                   {[40, 60, 75, 55, 80, 65, 90].map((height, index) => (
                     <div key={index} className="flex flex-col items-center">
                       <div
-                        className="w-8 bg-gradient-to-t from-blue-500 to-purple-600 rounded-t-lg transition-all duration-300 hover:from-blue-600 hover:to-purple-700"
+                        className="w-8 bg-linear-to-t from-blue-500 to-purple-600 rounded-t-lg transition-all duration-300 hover:from-blue-600 hover:to-purple-700"
                         style={{ height: `${height}%` }}
                       ></div>
                       <span className="text-xs text-gray-500 mt-2">День {index + 1}</span>
@@ -263,7 +263,7 @@ export default function Dashboard() {
             </div>
 
             {/* Profile Summary */}
-            <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl shadow-sm p-6 text-white">
+            <div className="bg-linear-to-br from-blue-500 to-purple-600 rounded-xl shadow-sm p-6 text-white">
               <h3 className="text-lg font-semibold mb-4">Ваш профіль</h3>
               <div className="space-y-3">
                 <div className="flex justify-between">

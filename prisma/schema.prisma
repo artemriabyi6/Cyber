@@ -1,0 +1,185 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  image         String?
+  createdAt     DateTime  @default(now())
+  role          String    @default("student")
+  
+  // NextAuth fields
+  emailVerified DateTime?
+  
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  progressStats      ProgressStat[]
+  trainingSessions   TrainingSession[]
+  achievements       Achievement[]
+  nextTrainings      NextTraining[]
+  goals              Goal[]
+  sentMessages       Message[] @relation("SentMessages")
+  receivedMessages   Message[] @relation("ReceivedMessages")
+  
+  @@map("users")
+}
+
+model TrainingPlan {
+  id           String   @id @default(cuid())
+  title        String
+  duration     String
+  intensity    String
+  completed    Boolean  @default(false)
+  exercises    String[]
+  assignedTo   String[]
+  createdBy    String
+  date         String
+  completedDate String?
+
+  @@map("training_plans")
+}
+
+// NextAuth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model ProgressStat {
+  id       String @id @default(cuid())
+  userId   String
+  skill    String
+  current  Int
+  previous Int
+  icon     String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("progress_stats")
+}
+
+model TrainingSession {
+  id               String  @id @default(cuid())
+  trainingPlanId   String?
+  userId           String
+  date             String
+  duration         String
+  performance      Int
+  coachNotes       String
+  completed        Boolean @default(false)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("training_sessions")
+}
+
+model CoachNote {
+  id   String @id @default(cuid())
+  note String
+  
+  @@map("coach_notes")
+}
+
+model Achievement {
+  id     String @id @default(cuid())
+  userId String
+  icon   String
+  title  String
+  value  String
+  color  String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("achievements")
+}
+
+model NextTraining {
+  id              String @id @default(cuid())
+  userId          String
+  date            String
+  time            String
+  type            String
+  focus           String
+  trainingPlanId  String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("next_trainings")
+}
+
+model Goal {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  targetValue Int
+  deadline    String
+  priority    String
+  exercises   String[]
+  userId      String
+  currentValue Int     @default(0)
+  status      String   @default("active")
+  createdAt   String
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("goals")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  text       String
+  senderId   String
+  receiverId String
+  timestamp  DateTime @default(now())
+  read       Boolean  @default(false)
+  
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+}

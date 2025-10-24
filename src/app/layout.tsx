@@ -1,14 +1,6 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+// app/layout.tsx
 import './globals.css';
-import { Providers } from './Providers';
-
-const inter = Inter({ subsets: ['latin'] });
-
-export const metadata: Metadata = {
-  title: 'Назва платформи',
-  description: 'Опис вашої платформи',
-};
+import Providers from './Providers';
 
 export default function RootLayout({
   children,
@@ -16,8 +8,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="uk">
-      <body className={inter.className}>
+    <html lang="en">
+      <body>
         <Providers>
           {children}
         </Providers>
