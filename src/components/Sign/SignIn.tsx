@@ -1,26 +1,29 @@
-// app/signin/page.tsx
+// components/Sign/SignIn.tsx
 "use client";
 
 import { signIn, getSession } from "next-auth/react";
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function SignIn() {
+interface SignInProps {
+  callbackUrl?: string;
+  initialMessage?: string;
+}
+
+export default function SignIn({ callbackUrl = '/dashboard', initialMessage = "" }: SignInProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState(initialMessage);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const message = searchParams.get('message');
-    if (message) {
-      setSuccessMessage(message);
+    if (initialMessage) {
+      setSuccessMessage(initialMessage);
     }
-  }, [searchParams]);
+  }, [initialMessage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +46,7 @@ export default function SignIn() {
         if (session?.user?.role === 'coach') {
           router.push('/coach-dashboard');
         } else {
-          router.push('/dashboard');
+          router.push(callbackUrl);
         }
       }
     } catch (error) {

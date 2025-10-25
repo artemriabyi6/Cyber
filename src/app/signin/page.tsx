@@ -1,10 +1,16 @@
-import React from 'react'
-import SignInForm from '@/components/Sign/SignIn'
+// app/signin/page.tsx
+import SignIn from '@/components/Sign/SignIn'
 
-const SignIn = () => {
-  return (
-    <SignInForm/>
-  )
+interface SignInPageProps {
+  searchParams: {
+    callbackUrl?: string
+    message?: string
+  }
 }
 
-export default SignIn
+export default function SignInPage({ searchParams }: SignInPageProps) {
+  const callbackUrl = searchParams.callbackUrl || '/dashboard'
+  const message = searchParams.message || ''
+  
+  return <SignIn callbackUrl={callbackUrl} initialMessage={message} />
+}
