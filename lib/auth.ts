@@ -37,7 +37,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.name,
-          image: user.image,
+          image: user.image || undefined,
           role: user.role
         };
       }
@@ -61,7 +61,6 @@ export const authOptions: NextAuthOptions = {
   },
   pages: {
     signIn: "/signin",
-    signUp: "/signup"
   },
   session: {
     strategy: "jwt"
