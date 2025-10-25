@@ -6,7 +6,7 @@ import { authOptions } from '../../../../../lib/auth'
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -15,10 +15,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
+    const { id } = await params
     const data = await request.json()
 
     const trainingPlan = await prisma.trainingPlan.update({
-      where: { id: params.id },
+      where: { id: id },
       data
     })
 
@@ -34,7 +35,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -43,8 +44,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
+    const { id } = await params
+
     await prisma.trainingPlan.delete({
-      where: { id: params.id }
+      where: { id: id }
     })
 
     return NextResponse.json({ message: 'Тренування видалено' })
