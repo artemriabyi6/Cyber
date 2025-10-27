@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '../../../../lib/prisma'
 import { getServerSession } from 'next-auth'
-import { authOptions } from './../../../../lib/auth'
+import { authOptions } from '../../../../lib/auth'
+
 
 export async function GET() {
   try {
@@ -12,17 +13,40 @@ export async function GET() {
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
-    const trainingPlans = await prisma.trainingPlan.findMany({
-      orderBy: {
-        date: 'desc'
-      }
-    })
+    console.log('Отримання training-plans для userId:', session.user.id, 'роль:', session.user.role);
 
-    return NextResponse.json(trainingPlans)
+    if (session.user.role === 'coach') {
+      // Для тренера - показуємо тренування, які він створив (перевіряємо по createdBy)
+      const trainingPlans = await prisma.trainingPlan.findMany({
+        where: {
+          createdBy: session.user.id
+        },
+        orderBy: {
+          date: 'desc'
+        }
+      })
+      console.log('Для тренера знайдено:', trainingPlans.length);
+      return NextResponse.json(trainingPlans)
+    } else {
+      // Для учня - показуємо тренування, де він є в assignedTo
+      const trainingPlans = await prisma.trainingPlan.findMany({
+        where: {
+          assignedTo: {
+            has: session.user.id
+          }
+        },
+        orderBy: {
+          date: 'desc'
+        }
+      })
+      console.log('Для учня знайдено:', trainingPlans.length);
+      return NextResponse.json(trainingPlans)
+    }
+
   } catch (error) {
-    console.error('Помилка завантаження тренувань:', error)
+    console.error('Помилка завантаження планів тренувань:', error)
     return NextResponse.json(
-      { error: 'Внутрішня помилка сервера' },
+      { error: 'Внутрішня помилка сервера: ' + (error instanceof Error ? error.message : 'Невідома помилка') },
       { status: 500 }
     )
   }
@@ -36,25 +60,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
-    const { title, duration, intensity, exercises, assignedTo, date } = await request.json()
-
-    if (!title || !date || !assignedTo || assignedTo.length === 0) {
-      return NextResponse.json(
-        { error: 'Обов\'язкові поля: назва, дата, призначені учні' },
-        { status: 400 }
-      )
-    }
+    const data = await request.json()
 
     const trainingPlan = await prisma.trainingPlan.create({
       data: {
-        title,
-        duration: duration || '45 хв',
-        intensity: intensity || 'medium',
-        exercises: exercises || [],
-        assignedTo,
-        createdBy: session.user.id,
-        date,
-        completed: false
+        ...data,
+        createdBy: session.user.id, // Використовуємо createdBy замість coachId
       }
     })
 
@@ -62,7 +73,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Помилка створення тренування:', error)
     return NextResponse.json(
-      { error: 'Внутрішня помилка сервера' },
+      { error: 'Внутрішня помилка сервера: ' + (error instanceof Error ? error.message : 'Невідома помилка') },
       { status: 500 }
     )
   }

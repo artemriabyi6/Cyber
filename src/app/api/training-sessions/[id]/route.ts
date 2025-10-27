@@ -1,13 +1,9 @@
-// app/api/training-sessions/[id]/route.ts
 import { NextResponse } from 'next/server'
 import { prisma } from '../../../../../lib/prisma'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '../../../../../lib/auth'
 
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions)
 
@@ -15,15 +11,29 @@ export async function DELETE(
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
-    const { id } = await params
-
-    await prisma.trainingSession.delete({
-      where: { id: id }
+    // Фільтруємо тренування по userId
+    const trainingSessions = await prisma.trainingSession.findMany({
+      where: { 
+        userId: session.user.id // Тільки тренування поточного користувача
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+      
+      },
+      orderBy: {
+        date: 'desc'
+      }
     })
 
-    return NextResponse.json({ message: 'Сесію тренування видалено' })
+    return NextResponse.json(trainingSessions)
   } catch (error) {
-    console.error('Помилка видалення сесії тренування:', error)
+    console.error('Помилка завантаження сесій тренувань:', error)
     return NextResponse.json(
       { error: 'Внутрішня помилка сервера' },
       { status: 500 }
@@ -31,11 +41,7 @@ export async function DELETE(
   }
 }
 
-// Додайте інші методи, якщо потрібно (GET, PATCH тощо)
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
 
@@ -43,48 +49,33 @@ export async function GET(
       return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
     }
 
-    const { id } = await params
+    const { trainingPlanId, date, duration, performance, coachNotes, completed } = await request.json()
 
-    const trainingSession = await prisma.trainingSession.findFirst({
-      where: { id: id }
-    })
-
-    if (!trainingSession) {
-      return NextResponse.json({ error: 'Сесію тренування не знайдено' }, { status: 404 })
-    }
-
-    return NextResponse.json(trainingSession)
-  } catch (error) {
-    console.error('Помилка отримання сесії тренування:', error)
-    return NextResponse.json(
-      { error: 'Внутрішня помилка сервера' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Не авторизовано' }, { status: 401 })
-    }
-
-    const { id } = await params
-    const data = await request.json()
-
-    const trainingSession = await prisma.trainingSession.update({
-      where: { id: id },
-      data
+    const trainingSession = await prisma.trainingSession.create({
+      data: {
+        trainingPlanId: trainingPlanId || null,
+        userId: session.user.id, // Важливо: використовуємо ID поточного користувача
+        date,
+        duration,
+        performance,
+        coachNotes,
+        completed: completed || false
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+      
+      }
     })
 
     return NextResponse.json(trainingSession)
   } catch (error) {
-    console.error('Помилка оновлення сесії тренування:', error)
+    console.error('Помилка створення сесії тренування:', error)
     return NextResponse.json(
       { error: 'Внутрішня помилка сервера' },
       { status: 500 }
