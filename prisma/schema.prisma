@@ -45,6 +45,10 @@ model TrainingPlan {
   createdBy    String
   date         String
   completedDate String?
+  
+  // Додаємо як опціональне поле спочатку
+  userId       String?  // Змінимо на ? (опціональне)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("training_plans")
 }

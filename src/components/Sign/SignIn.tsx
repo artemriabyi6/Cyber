@@ -118,20 +118,6 @@ export default function SignIn({ callbackUrl = '/dashboard', initialMessage = ""
             </Link>
           </p>
         </div>
-
-        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-          <p className="text-sm font-medium text-gray-700 mb-2">Тестові обліковки:</p>
-          <div className="text-xs text-gray-600 space-y-1">
-            <div className="flex justify-between">
-              <span>Учень:</span>
-              <span>artemriabyi8@gmail.com / dr16dr16dr16</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Тренер:</span>
-              <span>coach@football.com / coach123</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

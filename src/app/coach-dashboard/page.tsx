@@ -2,6 +2,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface User {
   id: string;
@@ -173,65 +174,70 @@ export default function CoachDashboard() {
 
   // Функція для додавання тренування
   const addTraining = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setError(null);
+  e.preventDefault();
+  try {
+    setError(null);
 
-      if (!newTraining.title.trim()) {
-        setError("Будь ласка, введіть назву тренування");
-        return;
-      }
-      if (!newTraining.date) {
-        setError("Будь ласка, виберіть дату");
-        return;
-      }
-      if (newTraining.assignedTo.length === 0) {
-        setError("Будь ласка, виберіть хоча б одного учня");
-        return;
-      }
-
-      const trainingData = {
-        title: newTraining.title.trim(),
-        duration: newTraining.duration || "45 хв",
-        intensity: newTraining.intensity,
-        exercises: newTraining.exercises.filter((ex) => ex.trim() !== ""),
-        assignedTo: newTraining.assignedTo,
-        date: newTraining.date,
-        completed: false,
-      };
-
-      const response = await fetch('/api/training-plans', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(trainingData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
-      }
-
-      const createdTraining = await response.json();
-      console.log("Тренування створено:", createdTraining);
-
-      setShowAddTraining(false);
-      setNewTraining({
-        title: "",
-        duration: "",
-        intensity: "medium",
-        exercises: [""],
-        assignedTo: [],
-        date: "",
-      });
-
-      fetchCoachData();
-    } catch (error) {
-      console.error("Помилка додавання тренування:", error);
-      setError(error instanceof Error ? error.message : "Помилка при додаванні тренування");
+    if (!newTraining.title.trim()) {
+      setError("Будь ласка, введіть назву тренування");
+      return;
     }
-  };
+    if (!newTraining.date) {
+      setError("Будь ласка, виберіть дату");
+      return;
+    }
+    if (newTraining.assignedTo.length === 0) {
+      setError("Будь ласка, виберіть хоча б одного учня");
+      return;
+    }
+
+    const trainingData = {
+      title: newTraining.title.trim(),
+      duration: newTraining.duration || "45 хв",
+      intensity: newTraining.intensity || "medium",
+      exercises: newTraining.exercises.filter((ex) => ex.trim() !== ""),
+      assignedTo: newTraining.assignedTo, // Масив ID учнів
+      date: newTraining.date,
+      completed: false,
+    };
+
+    console.log("Відправляємо дані тренування:", trainingData);
+
+    const response = await fetch('/api/training-plans', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(trainingData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Помилка сервера: ${response.status}`);
+    }
+
+    const createdTraining = await response.json();
+    console.log("Тренування створено:", createdTraining);
+
+    setShowAddTraining(false);
+    setNewTraining({
+      title: "",
+      duration: "",
+      intensity: "medium",
+      exercises: [""],
+      assignedTo: [],
+      date: "",
+    });
+
+    fetchCoachData();
+    
+    alert(`Тренування "${createdTraining.title}" успішно створено для ${createdTraining.assignedTo?.length || 0} учнів`);
+    
+  } catch (error) {
+    console.error("Помилка додавання тренування:", error);
+    setError(error instanceof Error ? error.message : "Помилка при додаванні тренування");
+  }
+};
 
   // Функція для редагування тренування
   const updateTraining = async (e: React.FormEvent) => {
@@ -316,28 +322,35 @@ export default function CoachDashboard() {
   };
 
   // Функція для видалення тренування
-  const deleteTraining = async (trainingId: string) => {
-    if (!confirm("Ви впевнені, що хочете видалити це тренування?")) return;
+  // Функція для видалення тренування
+const deleteTraining = async (trainingId: string) => {
+  if (!confirm("Ви впевнені, що хочете видалити це тренування?")) return;
 
-    try {
-      setError(null);
+  try {
+    setError(null);
 
-      const response = await fetch(`/api/training-plans/${trainingId}`, {
-        method: 'DELETE',
-      });
+    console.log("Видаляємо тренування:", trainingId);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Помилка видалення: ${response.status}`);
-      }
+    const response = await fetch(`/api/training-plans/${trainingId}`, {
+      method: 'DELETE',
+    });
 
-      console.log("Тренування видалено:", trainingId);
-      fetchCoachData();
-    } catch (error) {
-      console.error("Помилка видалення тренування:", error);
-      setError(error instanceof Error ? error.message : "Помилка при видаленні тренування");
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Помилка видалення: ${response.status}`);
     }
-  };
+
+    const result = await response.json();
+    console.log("Тренування видалено:", result);
+
+    fetchCoachData();
+    alert("Тренування успішно видалено");
+    
+  } catch (error) {
+    console.error("Помилка видалення тренування:", error);
+    setError(error instanceof Error ? error.message : "Помилка при видаленні тренування");
+  }
+};
 
   // Функція для відмітки тренування як завершеного для всіх учнів
   const markTrainingCompleted = async (trainingId: string) => {
@@ -688,57 +701,78 @@ export default function CoachDashboard() {
 
         {/* Stats Grid */}
         {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-2xl">👥</div>
-                <span className="text-sm font-medium text-green-600">
-                  +{stats.totalStudents}
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                {stats.totalStudents}
-              </h3>
-              <p className="text-gray-600 text-sm">Учнів</p>
-            </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+  {/* Загальна кількість учнів */}
+  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border border-blue-200 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="text-2xl text-blue-600">👥</div>
+      <span className="text-sm font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+        {students.length} уч.
+      </span>
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-1">
+      {students.length}
+    </h3>
+    <p className="text-gray-600 text-sm">Учнів</p>
+    <div className="mt-2 text-xs text-gray-500">
+      {students.filter(s => trainingPlans.some(p => p.assignedTo.includes(s.id))).length} активних
+    </div>
+  </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-2xl">✅</div>
-                <span className="text-sm font-medium text-green-600">
-                  +{stats.completedTrainings}
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                {stats.completedTrainings}
-              </h3>
-              <p className="text-gray-600 text-sm">Завершених тренувань</p>
-            </div>
+  {/* Статистика планів тренувань */}
+  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl shadow-sm border border-green-200 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="text-2xl text-green-600">📋</div>
+      <span className="text-sm font-medium text-green-600 bg-green-100 px-2 py-1 rounded-full">
+        {trainingPlans.filter(p => p.completed).length}/{trainingPlans.length}
+      </span>
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-1">
+      {trainingPlans.length}
+    </h3>
+    <p className="text-gray-600 text-sm">Планів тренувань</p>
+    <div className="mt-2 text-xs text-gray-500">
+      {trainingPlans.filter(p => !p.completed).length} активних
+    </div>
+  </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-2xl">📅</div>
-                <span className="text-sm font-medium text-blue-600">
-                  +{stats.upcomingTrainings}
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                {stats.upcomingTrainings}
-              </h3>
-              <p className="text-gray-600 text-sm">Майбутніх тренувань</p>
-            </div>
+  {/* Успішність тренувань */}
+  <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl shadow-sm border border-purple-200 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="text-2xl text-purple-600">⚡</div>
+      <span className="text-sm font-medium text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+        {trainingPlans.length > 0 
+          ? Math.round((trainingPlans.filter(p => p.completed).length / trainingPlans.length) * 100)
+          : 0
+        }%
+      </span>
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-1">
+      {stats.averagePerformance.toFixed(1)}%
+    </h3>
+    <p className="text-gray-600 text-sm">Середня успішність</p>
+    <div className="mt-2 text-xs text-gray-500">
+      {trainingPlans.filter(p => p.completed).length} завершених
+    </div>
+  </div>
 
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-2xl">📊</div>
-                <span className="text-sm font-medium text-green-600">+12%</span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-1">
-                {stats.averagePerformance.toFixed(1)}%
-              </h3>
-              <p className="text-gray-600 text-sm">Середня успішність</p>
-            </div>
-          </div>
+  {/* Загальна активність */}
+  <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-xl shadow-sm border border-orange-200 p-6">
+    <div className="flex items-center justify-between mb-4">
+      <div className="text-2xl text-orange-600">⏱️</div>
+      <span className="text-sm font-medium text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+        {trainingSessions.length} сес.
+      </span>
+    </div>
+    <h3 className="text-2xl font-bold text-gray-900 mb-1">
+      {trainingSessions.filter(s => s.completed).length}
+    </h3>
+    <p className="text-gray-600 text-sm">Завершених сесій</p>
+    <div className="mt-2 text-xs text-gray-500">
+      {trainingSessions.length} всього
+    </div>
+  </div>
+</div>
         )}
 
         {/* Navigation Tabs */}
@@ -839,12 +873,12 @@ export default function CoachDashboard() {
                       </div>
                     </button>
                     <button
-                      onClick={() => router.push("/statistics")}
+                      // onClick={() => router.push("/statistics")}
                       className="w-full text-left p-4 bg-white border rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
                     >
-                      <div className="font-medium text-gray-900">
+                      <Link href="/coach/statistics" className="font-medium text-gray-900">
                         📊 Аналітика
-                      </div>
+                      </Link>
                       <div className="text-sm text-gray-600">
                         Переглянути статистику
                       </div>
